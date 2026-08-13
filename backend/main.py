@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.api import auth, diwaan, specshield, tasks
+from .models.specshield import AuditSession, ExtractedData
+from .models.diwaan import Archetype, TenantDashboard
+from .models.onboarding import OnboardingSession
+from backend.api import auth, diwaan, specshield, tasks, onboarding
 from backend.core.config import settings
 from backend.core.exceptions import APIError, api_error_handler, global_exception_handler
 from backend.core.logging import logger
@@ -27,6 +30,7 @@ app.include_router(auth.router)
 app.include_router(diwaan.router)
 app.include_router(specshield.router)
 app.include_router(tasks.router)
+app.include_router(onboarding.router)
 
 @app.on_event("startup")
 async def startup_event():
