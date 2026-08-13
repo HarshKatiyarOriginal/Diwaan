@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Diwaan Token System */
+  --vault-sapphire: #0A1628;
+  --aurora-indigo: #1E2A5E;
+  --brushed-gold: #D4A24C;
+  --ember-copper: #C1663A;
+  --glass-white: #F5F3EE;
+  --muted-slate: #8B93A8;
+  
+  /* Spec Shield Shell Colors */
+  --ss-bg: #09090b;
+  --ss-surface: #18181b;
+  --ss-border: #27272a;
+  --ss-text-primary: #f4f4f5;
+  --ss-text-secondary: #a1a1aa;
+  
+  /* Status Colors - Spec Shield & Diwaan shared */
+  --status-ok: #10b981;
+  --status-warning: #f59e0b;
+  --status-critical: #ef4444;
+
+  /* Typography */
+  --font-display: 'Fraunces', serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  --transition-fast: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--ss-bg); /* Defaults to outer shell */
+  color: var(--ss-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

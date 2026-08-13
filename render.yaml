@@ -1,0 +1,49 @@
+services:
+  # The Postgres Database
+  - type: pgo
+    name: diwaan-db
+    plan: free
+
+  # The Redis Cache (for Celery)
+  - type: redis
+    name: diwaan-redis
+    plan: free
+    ipAllowList: [] # allow internal render traffic
+
+  # The FastAPI Backend
+  - type: web
+    name: diwaan-api
+    env: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: diwaan-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: diwaan-redis
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false # Requires manual entry in Render dashboard
+
+  # The Celery Worker
+  - type: worker
+    name: diwaan-worker
+    env: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && celery -A worker.tasks worker --loglevel=info"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: diwaan-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: diwaan-redis
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false

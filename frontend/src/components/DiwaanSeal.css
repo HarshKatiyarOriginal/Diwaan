@@ -1,0 +1,123 @@
+.diwaan-seal-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-style: preserve-3d;
+    perspective: 1000px;
+}
+
+.diwaan-seal-container.size-small {
+    width: 24px;
+    height: 24px;
+}
+
+.diwaan-seal-container.size-large {
+    width: 120px;
+    height: 120px;
+}
+
+.seal-ring {
+    position: absolute;
+    border-radius: 50%;
+    box-sizing: border-box;
+    transform-style: preserve-3d;
+}
+
+.seal-ring.outer {
+    width: 100%;
+    height: 100%;
+    border: 2px solid var(--brushed-gold);
+    box-shadow: 0 0 15px rgba(212, 162, 76, 0.2), inset 0 0 15px rgba(212, 162, 76, 0.2);
+}
+
+.seal-ring.middle {
+    width: 75%;
+    height: 75%;
+    border: 1px dashed var(--brushed-gold);
+    opacity: 0.6;
+}
+
+.seal-core {
+    position: relative;
+    width: 50%;
+    height: 50%;
+    border-radius: 50%;
+    background: rgba(10, 22, 40, 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(212, 162, 76, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    transform: translateZ(20px);
+}
+
+.core-symbol {
+    color: var(--brushed-gold);
+    font-size: 1.5em;
+    text-shadow: 0 0 10px var(--brushed-gold);
+}
+
+.core-glow {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at center, rgba(30, 42, 94, 0.8) 0%, transparent 70%);
+    opacity: 0.5;
+}
+
+/* Animations based on state */
+
+/* generating state */
+@media (prefers-reduced-motion: no-preference) {
+    .generating .seal-ring.outer {
+        animation: spin 4s linear infinite;
+    }
+    .generating .seal-ring.middle {
+        animation: spin-reverse 3s linear infinite;
+    }
+    .generating .seal-core {
+        animation: pulse 2s ease-in-out infinite;
+    }
+    .generating .core-glow {
+        animation: pulse-glow 2s ease-in-out infinite;
+    }
+    
+    /* unlocking state (Vault Transition) */
+    .unlocking .seal-ring.outer {
+        animation: unlock-spin 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .unlocking .seal-core {
+        animation: unlock-pop 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+}
+
+@keyframes spin {
+    to { transform: rotateZ(360deg); }
+}
+
+@keyframes spin-reverse {
+    to { transform: rotateZ(-360deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: translateZ(20px) scale(1); }
+    50% { transform: translateZ(30px) scale(1.05); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+@keyframes unlock-spin {
+    0% { transform: rotateZ(0deg); }
+    100% { transform: rotateZ(180deg) scale(1.2); opacity: 0; }
+}
+
+@keyframes unlock-pop {
+    0% { transform: translateZ(20px); }
+    100% { transform: translateZ(100px) scale(2); opacity: 0; }
+}

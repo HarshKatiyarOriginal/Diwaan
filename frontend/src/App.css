@@ -1,0 +1,56 @@
+.vault-transition-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.vault-doors {
+    position: absolute;
+    inset: 0;
+    display: flex;
+}
+
+.vault-door {
+    width: 50%;
+    height: 100%;
+    background: var(--vault-sapphire);
+    border-right: 2px solid var(--brushed-gold);
+    box-shadow: inset -20px 0 50px rgba(0,0,0,0.5);
+    transform: translateZ(0);
+}
+
+.vault-door.right {
+    border-right: none;
+    border-left: 2px solid var(--brushed-gold);
+    box-shadow: inset 20px 0 50px rgba(0,0,0,0.5);
+}
+
+.vault-seal-wrapper {
+    position: relative;
+    z-index: 2;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .vault-door.left {
+        animation: slide-left 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .vault-door.right {
+        animation: slide-right 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+}
+
+@keyframes slide-left {
+    0% { transform: translateX(-100%); }
+    40%, 60% { transform: translateX(0); }
+    100% { transform: translateX(-100%) scale(1.1); opacity: 0; }
+}
+
+@keyframes slide-right {
+    0% { transform: translateX(100%); }
+    40%, 60% { transform: translateX(0); }
+    100% { transform: translateX(100%) scale(1.1); opacity: 0; }
+}

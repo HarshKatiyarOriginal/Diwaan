@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: diwaan_user
+      POSTGRES_PASSWORD: diwaan_password
+      POSTGRES_DB: diwaan_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  db_test:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: diwaan_test_user
+      POSTGRES_PASSWORD: diwaan_test_password
+      POSTGRES_DB: diwaan_test_db
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - storage_data:/app/storage
+    depends_on:
+      - db
+      - redis
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build: .
+    volumes:
+      - .:/app
+      - storage_data:/app/storage
+    depends_on:
+      - db
+      - redis
+    command: celery -A backend.worker.celery_app worker --loglevel=info
+
+volumes:
+  postgres_data:
+  storage_data:
