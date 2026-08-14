@@ -6,8 +6,9 @@ import { FACTORY_OWNER_BLUEPRINT, SHOPKEEPER_BLUEPRINT, MALFORMED_BLUEPRINT, KIR
 import OnboardingChat from './components/OnboardingChat';
 import { mockStartSession, mockRespond } from './onboardingMock';
 
-// Ensure MOCK is explicitly true as requested for verification
-const IS_MOCK = import.meta.env.VITE_ONBOARDING_MOCK !== 'false'; 
+// Ensure MOCK is false by default, explicit opt-in only
+const IS_MOCK = import.meta.env.VITE_ONBOARDING_MOCK === 'true'; 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 function LandingPage({ onBack }) {
   const [session, setSession] = useState(null);
@@ -15,6 +16,7 @@ function LandingPage({ onBack }) {
   const [activeBlueprint, setActiveBlueprint] = useState(null);
   const [sampleMode, setSampleMode] = useState(false);
   const [sampleTab, setSampleTab] = useState('shop'); // 'shop' | 'farm' | 'paper'
+  const [authToken, setAuthToken] = useState(null);
 
   useEffect(() => {
     // Start session on mount
@@ -25,9 +27,29 @@ function LandingPage({ onBack }) {
         if (IS_MOCK) {
           data = await mockStartSession();
         } else {
-          // Real API call would go here
-          // const res = await fetch('/api/onboarding/sessions', { method: 'POST' });
-          // data = await res.json();
+          // Temporary Auth Bootstrap
+          const formData = new URLSearchParams();
+          formData.append('username', 'demo@diwaan.local');
+          formData.append('password', import.meta.env.VITE_DEMO_PASSWORD || 'secret');
+          
+          const loginRes = await fetch(`${API_BASE_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData
+          });
+          
+          if (!loginRes.ok) throw new Error("Auth failed");
+          const loginData = await loginRes.json();
+          const token = loginData.access_token;
+          setAuthToken(token);
+
+          // Real API call
+          const res = await fetch(`${API_BASE_URL}/api/onboarding/sessions`, { 
+             method: 'POST',
+             headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!res.ok) throw new Error("Failed to start session");
+          data = await res.json();
         }
         setSession({
           id: data.session_id,
@@ -58,8 +80,33 @@ function LandingPage({ onBack }) {
         data = await mockRespond(session.id, text, turnCount);
       } else {
         // Real API call
-        // const res = await fetch(`/api/onboarding/sessions/${session.id}/respond`, { ... });
-        // data = await res.json();
+        const res = await fetch(`${API_BASE_URL}/api/onboarding/sessions/${session.id}/respond`, {
+           method: 'POST',
+           headers: { 
+             'Authorization': `Bearer ${authToken}`,
+             'Content-Type': 'application/json'
+           },
+           body: JSON.stringify({ answer: text })
+        });
+        
+        if (res.status === 401) {
+           setSession({
+             ...session,
+             conversation: [...updatedConversation, { role: 'assistant', content: '⚠️ Session expired. Please refresh the page to log in again.' }]
+           });
+           setIsThinking(false);
+           return;
+        }
+        if (res.status === 502) {
+           setSession({
+             ...session,
+             conversation: [...updatedConversation, { role: 'assistant', content: '⚠️ The AI had trouble understanding that, try rephrasing.' }]
+           });
+           setIsThinking(false);
+           return;
+        }
+        if (!res.ok) throw new Error("Failed to respond");
+        data = await res.json();
       }
 
       if (data.status === 'in_progress') {

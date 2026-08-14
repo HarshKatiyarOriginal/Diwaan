@@ -9,7 +9,7 @@ from backend.models.onboarding import OnboardingSession
 from backend.models.user import User
 from backend.models.diwaan import TenantDashboard
 from backend.schemas.onboarding import InterviewTurn
-from backend.schemas.blueprint import Blueprint, ArchetypeClassification, WidgetConfig
+from backend.schemas.blueprint import Blueprint, ArchetypeClassification, Widget
 
 @pytest.fixture
 def mock_llm():
@@ -71,7 +71,7 @@ async def test_onboarding_happy_path(async_client: AsyncClient, db_session: Asyn
                 business_summary="Cycle factory",
                 customized_parameters={"primary_color": "#112233"},
                 active_widgets=[
-                    WidgetConfig(component_name="MetricCard", grid_position={"col_start":1, "col_span":2, "row_start":1, "row_span":1}, props={"title": "Revenue"})
+                    Widget(component_name="MetricCard", grid_position={"col":1, "span_x":2, "row":1, "span_y":1}, props={"title": "Revenue", "value": "1M"})
                 ]
             )
     

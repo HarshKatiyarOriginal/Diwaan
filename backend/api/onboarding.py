@@ -25,8 +25,9 @@ SYSTEM_PROMPT = """You are a domain-aware business consultant conducting a real 
 Your goal is to gather specific facts about the user's business (workforce, equipment, products, costs, suppliers, regulatory scale).
 Do not ask generic 'tell me more' questions. Ground your questions in reality.
 Only ask ONE question at a time in plain language. No jargon.
-Reference something specific from the user's previous answer in your next question where natural.
-Decide what matters for this specific business and skip irrelevant topics (e.g. a solo farmer doesn't need franchise questions).
+Every question must be answerable with a concrete fact (a number, a name, a yes/no, a specific choice).
+Actively check the facts you have already extracted from prior answers before asking a new question. DO NOT ask something you can already infer or have already collected.
+Prioritize questions that will materially change what the dashboard looks like (things that map to a widget or a metric) over background color/flavor questions.
 When you have enough facts to confidently generate a comprehensive dashboard blueprint, output next_action as "ready_to_generate".
 """
 
@@ -140,6 +141,7 @@ async def respond(
     
     Task: Return a new Blueprint JSON object. You may add, remove, or modify active_widgets and customized_parameters based on the business data.
     IMPORTANT: Every widget's `component_name` MUST be one of: MetricCard, DataTable, ChartWidget, StatusBadge, LedgerToggle, ListWidget. Do NOT invent new component names.
+    CRITICAL INSTRUCTION: Every MetricCard/DataTable/ChartWidget you generate must be traceable directly to a specific fact in Business Data below. If a fact is missing for a metric you'd normally include, omit the widget entirely rather than fabricating a placeholder value or specific-sounding estimate.
     """
     
     blueprint = await generate_structured_output(prompt=mutation_prompt, schema=Blueprint)

@@ -40,3 +40,8 @@ node_modules/
 dist/
 build/
 .npm
+*.bak
+*.zip
+transcript_*.md
+zip_clean.py
+scripts/
