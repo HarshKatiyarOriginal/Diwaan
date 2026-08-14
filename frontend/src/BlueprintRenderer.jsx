@@ -18,7 +18,7 @@ const COMPONENT_REGISTRY = {
     ListWidget
 };
 
-export default function BlueprintRenderer({ blueprint }) {
+export default function BlueprintRenderer({ blueprint, theme }) {
     if (!blueprint || !blueprint.active_widgets) {
         return <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>Awaiting blueprint...</div>;
     }
@@ -33,10 +33,14 @@ export default function BlueprintRenderer({ blueprint }) {
                     gridRow: `span ${widget.grid_position?.span_y || 1}`
                 };
 
+                // Primary stat card is usually the first MetricCard
+                const isPrimaryStatCard = idx === 0 && widget.component_name === 'MetricCard';
+                const effectClass = (isPrimaryStatCard && theme && theme.accentEffect) ? `effect-${theme.accentEffect}` : '';
+
                 return (
-                    <div key={widget.widget_id || idx} style={gridStyle}>
+                    <div key={widget.widget_id || idx} style={gridStyle} className={effectClass ? 'has-effect' : ''}>
                         {Component ? (
-                            <Component title={widget.title} {...widget.props} />
+                            <Component title={widget.title} {...widget.props} effectClassName={effectClass} />
                         ) : (
                             <UnsupportedWidget name={widget.component_name} />
                         )}

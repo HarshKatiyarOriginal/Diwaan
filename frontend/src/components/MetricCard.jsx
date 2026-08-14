@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export default function MetricCard({ title, value, delta, unit, sparklineData = [] }) {
+export default function MetricCard({ title, value, delta, unit, sparklineData = [], effectClassName = '' }) {
     const isUp = delta && delta.startsWith('+');
     const isDown = delta && delta.startsWith('-');
     
@@ -47,7 +47,7 @@ export default function MetricCard({ title, value, delta, unit, sparklineData = 
     }, [value]);
 
     return (
-        <div className="glass-card component-wrapper">
+        <div className={`glass-card component-wrapper ${effectClassName}`}>
             <div className="panel-header">
                 <span className="panel-title">{title}</span>
             </div>

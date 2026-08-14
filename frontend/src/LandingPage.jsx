@@ -143,11 +143,43 @@ function LandingPage({ onBack }) {
 
   return (
     <div className="page">
-      {/* Aurora Background */}
-      <div className="aurora-bg" />
-      <div className="orb orb-1" />
-      <div className="orb orb-2" />
-      <div className="orb orb-3" />
+      {/* Background System */}
+      <div className="background-system" style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'var(--vault-sapphire)' }}>
+        {ARCHETYPES.map((theme) => {
+          const isActive = activeBlueprint 
+            ? theme.id === activeBlueprint.archetype.replace('_', '-')
+            : theme.id === sampleTab;
+          // Eager load only the active one, lazy load the rest
+          return (
+            <img 
+              key={theme.id}
+              src={`/theme-backgrounds/${theme.id}.webp`}
+              alt=""
+              loading={isActive ? "eager" : "lazy"}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: isActive ? 1 : 0,
+                transition: 'opacity 0.6s ease-in-out',
+                pointerEvents: 'none'
+              }}
+            />
+          );
+        })}
+        {/* The Non-Negotiable Scrim */}
+        <div 
+          className="background-scrim" 
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.75))',
+            pointerEvents: 'none'
+          }}
+        />
+      </div>
 
       {/* Nav */}
       <nav className="nav">
