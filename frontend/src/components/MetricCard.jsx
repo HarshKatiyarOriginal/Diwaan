@@ -1,6 +1,50 @@
+import { useState, useEffect } from 'react';
+
 export default function MetricCard({ title, value, delta, unit, sparklineData = [] }) {
     const isUp = delta && delta.startsWith('+');
     const isDown = delta && delta.startsWith('-');
+    
+    const [displayValue, setDisplayValue] = useState(value);
+
+    useEffect(() => {
+        setDisplayValue(value); // reset on value change
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) return;
+
+        // Parse number from string (e.g. "₹48,200" -> 48200)
+        const numericMatch = value.match(/[\d,.]+/);
+        if (!numericMatch) return;
+        
+        const numStr = numericMatch[0].replace(/,/g, '');
+        const targetNum = parseFloat(numStr);
+        if (isNaN(targetNum)) return;
+
+        const prefix = value.substring(0, numericMatch.index);
+        const suffix = value.substring(numericMatch.index + numericMatch[0].length);
+        
+        const duration = 1000;
+        const steps = 30;
+        const stepTime = duration / steps;
+        let currentStep = 0;
+
+        const timer = setInterval(() => {
+            currentStep++;
+            const progress = currentStep / steps;
+            // easeOutQuart
+            const easeProgress = 1 - Math.pow(1 - progress, 4);
+            const currentNum = targetNum * easeProgress;
+            
+            let formattedNum = currentNum.toLocaleString(undefined, { maximumFractionDigits: targetNum % 1 === 0 ? 0 : 2 });
+            setDisplayValue(`${prefix}${formattedNum}${suffix}`);
+            
+            if (currentStep >= steps) {
+                clearInterval(timer);
+                setDisplayValue(value);
+            }
+        }, stepTime);
+
+        return () => clearInterval(timer);
+    }, [value]);
 
     return (
         <div className="glass-card component-wrapper">
@@ -8,7 +52,7 @@ export default function MetricCard({ title, value, delta, unit, sparklineData = 
                 <span className="panel-title">{title}</span>
             </div>
             <div className="metric-body" style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', marginTop: '16px' }}>
-                <span className="metric-big glow-text">{value}</span>
+                <span className="metric-big glow-text">{displayValue}</span>
                 {unit && <span className="metric-label">{unit}</span>}
             </div>
             {delta && (

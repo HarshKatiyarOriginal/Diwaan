@@ -20,11 +20,17 @@ export default function DataTable({ title, columns, rows }) {
                             <tr key={i}>
                                 {row.map((cell, j) => {
                                     // Hacky formatting for status tags if it looks like one
-                                    const isStatus = typeof cell === 'string' && ['OK', 'CRITICAL', 'WARNING'].includes(cell.toUpperCase());
-                                    const statusColor = cell.toUpperCase() === 'OK' ? 'var(--status-ok)' : cell.toUpperCase() === 'CRITICAL' ? 'var(--status-critical)' : 'var(--status-warning)';
+                                    const cellStr = typeof cell === 'string' ? cell.toUpperCase() : '';
+                                    const isStatus = ['OK', 'CRITICAL', 'WARNING', 'REORDER', 'PENDING'].includes(cellStr);
+                                    let statusColor = 'var(--text-primary)';
+                                    if (isStatus) {
+                                        if (cellStr === 'OK') statusColor = 'var(--status-ok)';
+                                        else if (cellStr === 'CRITICAL') statusColor = 'var(--status-critical)';
+                                        else statusColor = 'var(--status-warning)';
+                                    }
                                     
                                     return (
-                                        <td key={j} style={{ padding: '12px 4px', fontSize: '0.85rem', color: isStatus ? statusColor : 'var(--text-primary)' }}>
+                                        <td key={j} style={{ padding: '12px 4px', fontSize: '0.85rem', color: statusColor, borderBottom: '1px solid var(--surface-muted)' }}>
                                             {cell}
                                         </td>
                                     );

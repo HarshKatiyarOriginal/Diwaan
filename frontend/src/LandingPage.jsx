@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import './LandingPage.css';
 import DiwaanSeal from './components/DiwaanSeal';
 import BlueprintRenderer from './BlueprintRenderer';
-import { FACTORY_OWNER_BLUEPRINT, SHOPKEEPER_BLUEPRINT, MALFORMED_BLUEPRINT, KIRANA_SHOP_BLUEPRINT, FARM_BLUEPRINT, PAPER_FACTORY_BLUEPRINT } from './fixtures';
+import { FACTORY_OWNER_BLUEPRINT, SHOPKEEPER_BLUEPRINT, MALFORMED_BLUEPRINT, KIRANA_SHOP_BLUEPRINT, FARM_BLUEPRINT, PAPER_FACTORY_BLUEPRINT, ICE_CREAM_FACTORY_BLUEPRINT, TILES_FACTORY_BLUEPRINT } from './fixtures';
+import { ARCHETYPES, validateTheme } from './themes/archetypes';
 import OnboardingChat from './components/OnboardingChat';
 import { mockStartSession, mockRespond } from './onboardingMock';
 
@@ -15,7 +16,7 @@ function LandingPage({ onBack }) {
   const [isThinking, setIsThinking] = useState(false);
   const [activeBlueprint, setActiveBlueprint] = useState(null);
   const [sampleMode, setSampleMode] = useState(false);
-  const [sampleTab, setSampleTab] = useState('shop'); // 'shop' | 'farm' | 'paper'
+  const [sampleTab, setSampleTab] = useState('kirana-shop');
   const [authToken, setAuthToken] = useState(null);
 
   useEffect(() => {
@@ -237,25 +238,26 @@ function LandingPage({ onBack }) {
         {sampleMode ? (
           <div className="sample-dashboard-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', maxWidth: '1200px', margin: '0 auto', paddingBottom: '40px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="sample-tabs" style={{ display: 'flex', gap: '8px' }}>
-                {['shop', 'farm', 'paper'].map(tab => (
+              <div className="sample-tabs" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {ARCHETYPES.map(theme => (
                   <button
-                    key={tab}
-                    onClick={() => setSampleTab(tab)}
+                    key={theme.id}
+                    onClick={() => setSampleTab(theme.id)}
                     style={{
                       padding: '8px 16px',
                       borderRadius: '8px',
                       border: '1px solid',
-                      borderColor: sampleTab === tab ? 'var(--brushed-gold)' : 'rgba(255,255,255,0.1)',
-                      background: sampleTab === tab ? 'rgba(255, 176, 32, 0.1)' : 'transparent',
-                      color: sampleTab === tab ? 'var(--brushed-gold)' : 'var(--muted-slate)',
+                      borderColor: sampleTab === theme.id ? 'var(--brushed-gold)' : 'rgba(255,255,255,0.1)',
+                      background: sampleTab === theme.id ? 'rgba(255, 176, 32, 0.1)' : 'transparent',
+                      color: sampleTab === theme.id ? 'var(--brushed-gold)' : 'var(--muted-slate)',
                       fontFamily: 'var(--font-mono)',
                       fontSize: '0.85rem',
                       textTransform: 'uppercase',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      transition: 'var(--transition-fast)'
                     }}
                   >
-                    {tab === 'shop' ? 'Kirana Shop' : tab === 'farm' ? 'Farm' : 'Paper Factory'}
+                    {theme.label}
                   </button>
                 ))}
               </div>
@@ -282,11 +284,52 @@ function LandingPage({ onBack }) {
               ⚠ SAMPLE DATA — FOR DEMONSTRATION ONLY
             </div>
 
-            <BlueprintRenderer blueprint={
-              sampleTab === 'shop' ? KIRANA_SHOP_BLUEPRINT : 
-              sampleTab === 'farm' ? FARM_BLUEPRINT : 
-              PAPER_FACTORY_BLUEPRINT
-            } />
+            {(() => {
+              const theme = ARCHETYPES.find(t => t.id === sampleTab);
+              if (!validateTheme(theme)) {
+                return (
+                  <div style={{
+                    background: 'repeating-linear-gradient(45deg, #FFD700, #FFD700 10px, #FF0000 10px, #FF0000 20px)',
+                    color: 'white', padding: '40px', textAlign: 'center', borderRadius: '8px', fontWeight: 'bold'
+                  }}>
+                    <h2>⚠ THEME NOT CONFIGURED</h2>
+                    <p>The configuration for archetype "{sampleTab}" is missing or invalid.</p>
+                  </div>
+                );
+              }
+
+              const blueprint = sampleTab === 'kirana-shop' ? KIRANA_SHOP_BLUEPRINT :
+                                sampleTab === 'farm' ? FARM_BLUEPRINT :
+                                sampleTab === 'paper-factory' ? PAPER_FACTORY_BLUEPRINT :
+                                sampleTab === 'ice-cream-factory' ? ICE_CREAM_FACTORY_BLUEPRINT :
+                                TILES_FACTORY_BLUEPRINT;
+
+              return (
+                <div 
+                  className={`theme-root motif-${theme.backgroundMotif} accent-${theme.accentEffect}`} 
+                  style={{
+                    '--primary': theme.palette.primary,
+                    '--secondary': theme.palette.secondary,
+                    '--accent': theme.palette.accent,
+                    '--background': theme.palette.background,
+                    '--surface': theme.palette.surface,
+                    '--surface-muted': theme.palette.surfaceMuted,
+                    '--text-primary': theme.palette.textPrimary,
+                    '--text-muted': theme.palette.textMuted,
+                    '--status-ok': theme.palette.statusOk,
+                    '--status-warning': theme.palette.statusWarning,
+                    '--status-critical': theme.palette.statusCritical,
+                    '--card-radius': theme.cardRadius === 'sharp' ? '4px' : '16px',
+                    backgroundColor: 'var(--background)',
+                    padding: '24px',
+                    borderRadius: '12px',
+                    transition: 'var(--transition-smooth)'
+                  }}
+                >
+                  <BlueprintRenderer blueprint={blueprint} />
+                </div>
+              );
+            })()}
           </div>
         ) : session?.status === 'complete' && isThinking ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '400px', gap: '32px' }}>
@@ -298,7 +341,38 @@ function LandingPage({ onBack }) {
         ) : activeBlueprint ? (
           <>
             <p className="section-label" style={{ marginTop: '40px' }}>Live Preview — {activeBlueprint.archetype.replace('_', ' ')} Dashboard</p>
-            <BlueprintRenderer blueprint={activeBlueprint} />
+            {(() => {
+              // Extract theme dynamically from the generated blueprint archetype name, fallback to a matched config
+              const theme = ARCHETYPES.find(t => t.id === activeBlueprint.archetype.replace('_', '-')) || ARCHETYPES[0]; 
+              
+              if (!validateTheme(theme)) return null;
+
+              return (
+                <div 
+                  className={`theme-root motif-${theme.backgroundMotif} accent-${theme.accentEffect}`} 
+                  style={{
+                    '--primary': theme.palette.primary,
+                    '--secondary': theme.palette.secondary,
+                    '--accent': theme.palette.accent,
+                    '--background': theme.palette.background,
+                    '--surface': theme.palette.surface,
+                    '--surface-muted': theme.palette.surfaceMuted,
+                    '--text-primary': theme.palette.textPrimary,
+                    '--text-muted': theme.palette.textMuted,
+                    '--status-ok': theme.palette.statusOk,
+                    '--status-warning': theme.palette.statusWarning,
+                    '--status-critical': theme.palette.statusCritical,
+                    '--card-radius': theme.cardRadius === 'sharp' ? '4px' : '16px',
+                    backgroundColor: 'var(--background)',
+                    padding: '24px',
+                    borderRadius: '12px',
+                    transition: 'var(--transition-smooth)'
+                  }}
+                >
+                  <BlueprintRenderer blueprint={activeBlueprint} />
+                </div>
+              );
+            })()}
           </>
         ) : null}
       </section>

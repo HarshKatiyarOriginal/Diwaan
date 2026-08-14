@@ -292,3 +292,119 @@ export const SPEC_SHIELD_FIXTURE = {
         { id: "c-4", parameter: "WEIGHT", blueprint_value: "8,400 kg", invoice_value: "8,380 kg", is_match: false, severity: "MEDIUM" }
     ]
 };
+
+export const ICE_CREAM_FACTORY_BLUEPRINT = {
+    archetype: "ice-cream-factory",
+    business_summary: "Cold-chain manufacturing unit producing ice cream and frozen desserts.",
+    customized_parameters: { currency: "INR" },
+    active_widgets: [
+        {
+            widget_id: "w-ic-1",
+            component_name: "MetricCard",
+            title: "Daily Production",
+            grid_position: { row: 1, col: 1, span_x: 1, span_y: 1 },
+            props: { value: "500", unit: "Liters", delta: "+15L", sparklineData: [450, 480, 470, 490, 500] }
+        },
+        {
+            widget_id: "w-ic-2",
+            component_name: "StatusBadge",
+            title: "Cold Chain Status",
+            grid_position: { row: 1, col: 2, span_x: 1, span_y: 1 },
+            props: { status: "ok", label: "Freezer at -18°C" }
+        },
+        {
+            widget_id: "w-ic-3",
+            component_name: "DataTable",
+            title: "Ingredient Inventory",
+            grid_position: { row: 2, col: 1, span_x: 2, span_y: 1 },
+            props: {
+                columns: ["Ingredient", "Stock", "Status"],
+                rows: [
+                    ["Milk (Full Cream)", "2,000 L", "OK"],
+                    ["Sugar", "500 kg", "OK"],
+                    ["Vanilla Extract", "10 L", "REORDER"]
+                ]
+            }
+        },
+        {
+            widget_id: "w-ic-4",
+            component_name: "ChartWidget",
+            title: "Flavor Distribution",
+            grid_position: { row: 3, col: 1, span_x: 1, span_y: 1 },
+            props: { chartType: "donut", data: [{label: "Vanilla", val: 40}, {label: "Chocolate", val: 35}, {label: "Strawberry", val: 25}] }
+        },
+        {
+            widget_id: "w-ic-5",
+            component_name: "ListWidget",
+            title: "Recent Dispatches",
+            grid_position: { row: 3, col: 2, span_x: 1, span_y: 1 },
+            props: {
+                items: [
+                    { icon: "cone", text: "Batch #801", meta: "Completed", dotColor: "var(--status-ok)" },
+                    { icon: "snowflake", text: "Freezer Truck A", meta: "Dispatched", dotColor: "var(--status-ok)" },
+                    { icon: "thermometer", text: "Temp Alert (Truck B)", meta: "Resolved", dotColor: "var(--status-warning)" }
+                ]
+            }
+        }
+    ],
+    generated_at: new Date().toISOString(),
+    version: "1.0"
+};
+
+export const TILES_FACTORY_BLUEPRINT = {
+    archetype: "tiles-factory",
+    business_summary: "Ceramic tiles manufacturing unit focusing on kiln production.",
+    customized_parameters: { currency: "INR" },
+    active_widgets: [
+        {
+            widget_id: "w-tf-1",
+            component_name: "MetricCard",
+            title: "Kiln Temperature",
+            grid_position: { row: 1, col: 1, span_x: 1, span_y: 1 },
+            props: { value: "1150", unit: "°C", delta: "Stable", sparklineData: [1145, 1148, 1150, 1150, 1150] }
+        },
+        {
+            widget_id: "w-tf-2",
+            component_name: "StatusBadge",
+            title: "Production Status",
+            grid_position: { row: 1, col: 2, span_x: 1, span_y: 1 },
+            props: { status: "ok", label: "Kiln #1 Active" }
+        },
+        {
+            widget_id: "w-tf-3",
+            component_name: "DataTable",
+            title: "Raw Material Stock",
+            grid_position: { row: 2, col: 1, span_x: 2, span_y: 1 },
+            props: {
+                columns: ["Material", "Stock", "Status"],
+                rows: [
+                    ["Clay", "1,200 Tonnes", "OK"],
+                    ["Feldspar", "400 Tonnes", "OK"],
+                    ["Glaze Chemicals", "50 Barrels", "REORDER"]
+                ]
+            }
+        },
+        {
+            widget_id: "w-tf-4",
+            component_name: "ChartWidget",
+            title: "Output Quality",
+            grid_position: { row: 3, col: 1, span_x: 1, span_y: 1 },
+            props: { chartType: "donut", data: [{label: "Grade A", val: 85}, {label: "Grade B", val: 12}, {label: "Rejects", val: 3}] }
+        },
+        {
+            widget_id: "w-tf-5",
+            component_name: "ListWidget",
+            title: "Recent Activity",
+            grid_position: { row: 3, col: 2, span_x: 1, span_y: 1 },
+            props: {
+                items: [
+                    { icon: "flame", text: "Kiln #1 Fired", meta: "08:00 AM", dotColor: "var(--status-ok)" },
+                    { icon: "stacked-tile", text: "Batch #402 Stacked", meta: "Pending Q/A", dotColor: "var(--status-warning)" },
+                    { icon: "thermometer", text: "Heat Check", meta: "Passed", dotColor: "var(--status-ok)" }
+                ]
+            }
+        }
+    ],
+    generated_at: new Date().toISOString(),
+    version: "1.0"
+};
