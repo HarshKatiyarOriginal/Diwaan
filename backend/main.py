@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .models.specshield import AuditSession, Document, ComparisonResult
 from .models.diwaan import Archetype, TenantDashboard
 from .models.onboarding import OnboardingSession
+from backend.models import Base
 from backend.api import auth, diwaan, specshield, tasks, onboarding
 from backend.core.config import settings
 from backend.core.exceptions import APIError, api_error_handler, global_exception_handler

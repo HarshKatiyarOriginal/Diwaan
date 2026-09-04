@@ -1,17 +1,15 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, JSON, UUID
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy import Column, String, DateTime, ForeignKey
+from backend.db.types import JSONType, UUIDType
 from sqlalchemy.orm import relationship
 from datetime import datetime
-import uuid
 from ..db.session import Base
 
-JSONType = JSON().with_variant(JSONB, "postgresql")
-UUIDType = UUID(as_uuid=True).with_variant(PG_UUID(as_uuid=True), "postgresql")
 
 class Archetype(Base):
     __tablename__ = "archetypes"
-    id = Column(String, primary_key=True) # e.g. "farmer", "shopkeeper", "factory_owner"
+    id = Column(String, primary_key=True)  # e.g. "farmer", "shopkeeper", "factory_owner"
     base_template = Column(JSONType, nullable=False)
+
 
 class TenantDashboard(Base):
     __tablename__ = "tenant_dashboards"

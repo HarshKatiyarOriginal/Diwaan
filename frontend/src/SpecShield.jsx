@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './SpecShield.css';
+import { apiFetch } from './api/client';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 const TASK_POLL_INTERVAL_MS = 3000;
 const TASK_POLL_MAX_RETRIES = 60; // 3 min max
 
@@ -24,7 +24,7 @@ function deriveAgents(documents) {
 
 /**
  * Derive system log entries from real document + comparison state.
- * Each entry is timestamped at the time it's computed (not authored strings).
+ * Each entry is timestamped at the time it's computed.
  */
 function deriveLogs(documents, comparisons) {
   const logs = [];
@@ -56,7 +56,7 @@ function deriveLogs(documents, comparisons) {
 }
 
 // ─── Project Name Modal ───────────────────────────────────────────────────────
-function ProjectNameModal({ onConfirm }) {
+function ProjectNameModal({ onConfirm, error }) {
   const [name, setName] = useState('');
   return (
     <div style={{
@@ -73,6 +73,15 @@ function ProjectNameModal({ onConfirm }) {
         <p style={{ color: '#6b7a99', fontSize: '0.85rem', marginBottom: '24px' }}>
           Enter a project or procurement name to begin document analysis.
         </p>
+        {error && (
+          <div style={{
+            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+            color: '#fca5a5', padding: '10px 14px', borderRadius: '8px',
+            fontSize: '0.85rem', marginBottom: '16px', fontFamily: 'monospace',
+          }}>
+            {error}
+          </div>
+        )}
         <input
           type="text"
           value={name}
@@ -108,7 +117,7 @@ function ProjectNameModal({ onConfirm }) {
 }
 
 // ─── SpecShield Main ──────────────────────────────────────────────────────────
-export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
+export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuthExpired }) {
   const [highlighted, setHighlighted] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [projectName, setProjectName] = useState(null);
@@ -118,26 +127,44 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
   const [uploadError, setUploadError] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [docType, setDocType] = useState('blueprint');
-  const pollRefs = useRef({}); // task_id → retry count
 
-  // ─── Create session ─────────────────────────────────────────────────────────
+  const pollIntervals = useRef({}); // task_id → interval handle
+  const pollCounts = useRef({});     // task_id → retry count
+  const inFlight = useRef({});       // task_id → boolean
+  const debounceTimer = useRef(null);
+
+  // ─── Debounced refresh session state (Item 4) ────────────────────────────────
+  function debouncedRefreshSession(sid) {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      refreshSession(sid);
+    }, 300);
+  }
+
+  // ─── Create session (Item 5) ─────────────────────────────────────────────────
   async function createSession(name) {
-    setShowProjectModal(false);
+    setUploadError(null);
     setProjectName(name);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/specshield/sessions`, {
+      const res = await apiFetch('/api/specshield/sessions', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_name: name }),
       });
-      if (!res.ok) throw new Error('Failed to create session');
+      if (res.status === 401) {
+        onAuthExpired?.();
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || 'Failed to create session');
+      }
       const data = await res.json();
       setSessionId(data.id);
+      setShowProjectModal(false);
     } catch (e) {
       setUploadError(`Session creation failed: ${e.message}`);
+      setShowProjectModal(true); // Re-open modal so user can retry
     }
   }
 
@@ -145,9 +172,7 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
   async function refreshSession(sid) {
     if (!sid) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/specshield/sessions/${sid}`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+      const res = await apiFetch(`/api/specshield/sessions/${sid}`);
       if (!res.ok) return;
       const data = await res.json();
       setDocuments(data.documents || []);
@@ -157,34 +182,44 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
     }
   }
 
-  // ─── Poll Celery task ────────────────────────────────────────────────────────
+  // ─── Poll Celery task with overlap guard (Item 4) ────────────────────────────
   function pollTask(taskId, sid) {
-    if (pollRefs.current[taskId] !== undefined) return; // already polling
-    pollRefs.current[taskId] = 0;
+    if (pollIntervals.current[taskId]) return; // already polling
+    pollCounts.current[taskId] = 0;
 
     const interval = setInterval(async () => {
-      pollRefs.current[taskId] = (pollRefs.current[taskId] || 0) + 1;
-      if (pollRefs.current[taskId] > TASK_POLL_MAX_RETRIES) {
+      // Guard against overlapping ticks under slow backend
+      if (inFlight.current[taskId]) return;
+      inFlight.current[taskId] = true;
+
+      pollCounts.current[taskId] = (pollCounts.current[taskId] || 0) + 1;
+      if (pollCounts.current[taskId] > TASK_POLL_MAX_RETRIES) {
         clearInterval(interval);
-        delete pollRefs.current[taskId];
+        delete pollIntervals.current[taskId];
+        delete pollCounts.current[taskId];
+        delete inFlight.current[taskId];
         return;
       }
 
       try {
-        const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
+        const res = await apiFetch(`/api/tasks/${taskId}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
           clearInterval(interval);
-          delete pollRefs.current[taskId];
-          await refreshSession(sid);
+          delete pollIntervals.current[taskId];
+          delete pollCounts.current[taskId];
+          delete inFlight.current[taskId];
+          debouncedRefreshSession(sid);
         }
       } catch {
         // retry next tick
+      } finally {
+        inFlight.current[taskId] = false;
       }
     }, TASK_POLL_INTERVAL_MS);
+
+    pollIntervals.current[taskId] = interval;
   }
 
   // ─── Upload document ─────────────────────────────────────────────────────────
@@ -199,9 +234,8 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
     formData.append('doc_type', docType);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/specshield/sessions/${sessionId}/documents`, {
+      const res = await apiFetch(`/api/specshield/sessions/${sessionId}/documents`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${authToken}` },
         body: formData,
       });
 
@@ -225,27 +259,34 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
       await refreshSession(sessionId);
 
       if (data.status === 'processing' && data.task_id) {
-        // Mark doc as processing in local state while we poll
         setDocuments(prev => prev.map(d =>
           String(d.id) === String(data.document_id) ? { ...d, status: 'processing' } : d
         ));
         pollTask(data.task_id, sessionId);
       }
-      // manual_review_required is already reflected via refreshSession
     } catch (e) {
       setUploadError(`Upload error: ${e.message}`);
     } finally {
       setUploading(false);
-      e.target.value = ''; // allow re-upload of same filename
+      e.target.value = '';
     }
   }
 
-  // ─── Cleanup polls on unmount ────────────────────────────────────────────────
-  useEffect(() => () => { pollRefs.current = {}; }, []);
+  // ─── Cleanup polls on unmount (Item 4) ───────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      Object.values(pollIntervals.current).forEach(id => clearInterval(id));
+      pollIntervals.current = {};
+      pollCounts.current = {};
+      inFlight.current = {};
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
 
-  // ─── Derived state ───────────────────────────────────────────────────────────
-  const agents = deriveAgents(documents);
-  const logEntries = deriveLogs(documents, comparisons);
+  // ─── Derived state (Item 10 useMemo) ──────────────────────────────────────────
+  const agents = useMemo(() => deriveAgents(documents), [documents]);
+  const logEntries = useMemo(() => deriveLogs(documents, comparisons), [documents, comparisons]);
+
   const blueprintDocs = documents.filter(d => d.doc_type === 'blueprint');
   const invoiceDocs = documents.filter(d => d.doc_type === 'invoice');
   const errorCount = comparisons.filter(c => !c.is_match && c.severity === 'HIGH').length;
@@ -256,7 +297,7 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
 
   return (
     <>
-      {showProjectModal && <ProjectNameModal onConfirm={createSession} />}
+      {showProjectModal && <ProjectNameModal onConfirm={createSession} error={uploadError} />}
 
       <div className="ss-app">
         {/* Navbar */}
@@ -383,7 +424,7 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
               </div>
             )}
 
-            {/* Agent Nodes — derived from real documents */}
+            {/* Agent Nodes */}
             {agents.length > 0 && (
               <div className="ss-sidebar-section">
                 <div className="ss-sidebar-label">Pipeline Tasks</div>
@@ -445,10 +486,25 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
               )}
             </div>
 
-            {/* Empty / Loading State */}
+            {/* Empty / Loading State (Item 5 Fix) */}
             {!sessionId && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60%', color: '#6b7a99', fontFamily: 'monospace', fontSize: '0.9rem' }}>
-                Creating audit session…
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', color: '#6b7a99', fontFamily: 'monospace', fontSize: '0.9rem', gap: '16px' }}>
+                {uploadError ? (
+                  <>
+                    <div style={{ color: '#fca5a5', textAlign: 'center', maxWidth: '400px' }}>{uploadError}</div>
+                    <button
+                      onClick={() => setShowProjectModal(true)}
+                      style={{
+                        padding: '10px 20px', background: '#d4a24c', color: '#0a0c14',
+                        border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 'bold',
+                      }}
+                    >
+                      Retry Session Creation
+                    </button>
+                  </>
+                ) : (
+                  <div>Creating audit session…</div>
+                )}
               </div>
             )}
 
@@ -545,7 +601,7 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout }) {
               </div>
             )}
 
-            {/* Log Bar — derived from real state */}
+            {/* Log Bar */}
             {logEntries.length > 0 && (
               <div className="ss-log-bar">
                 {logEntries.map((e, i) => (

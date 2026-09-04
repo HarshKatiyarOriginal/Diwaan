@@ -226,6 +226,7 @@ async def get_session(
         if dash:
             blueprint = Blueprint(
                 archetype=dash.archetype_id,
+                visual_theme=dash.customized_parameters.get("visual_theme") if dash.customized_parameters else None,
                 business_summary=dash.business_summary,
                 customized_parameters=dash.customized_parameters,
                 active_widgets=dash.active_widgets,

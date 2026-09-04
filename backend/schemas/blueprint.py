@@ -13,13 +13,7 @@ VISUAL_THEME_IDS = (
     "tiles-factory",
 )
 
-VisualTheme = Literal[
-    "kirana-shop",
-    "farm",
-    "paper-factory",
-    "ice-cream-factory",
-    "tiles-factory",
-]
+VisualTheme = Literal[*VISUAL_THEME_IDS]
 
 # Safe archetype → default theme fallback (used when LLM omits visual_theme)
 ARCHETYPE_THEME_FALLBACKS: Dict[str, str] = {

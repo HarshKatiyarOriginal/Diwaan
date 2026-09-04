@@ -3,12 +3,9 @@ import os
 import sys
 
 # Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from backend.db.session import AsyncSessionLocal
-from backend.models.diwaan import Archetype
-import backend.models.user
-import backend.models.specshield
+import backend.models
+from backend.models import Base, Archetype
+from backend.db.session import AsyncSessionLocal, engine
 from sqlalchemy.future import select
 
 # ─── FARMER ────────────────────────────────────────────────────────────────────
@@ -246,8 +243,6 @@ factory_base = {
     ]
 }
 
-
-from backend.db.session import AsyncSessionLocal, Base, engine
 
 async def seed_archetypes():
     async with engine.begin() as conn:

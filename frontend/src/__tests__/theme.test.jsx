@@ -1,21 +1,5 @@
 import { expect, test } from 'vitest';
-import { ARCHETYPES } from '../themes/archetypes';
-
-const ARCHETYPE_THEME_FALLBACKS = {
-  farmer: 'farm',
-  shopkeeper: 'kirana-shop',
-  factory_owner: 'paper-factory',
-};
-
-function resolveTheme(blueprint) {
-  if (!blueprint) return null;
-  if (blueprint.visual_theme) {
-    const t = ARCHETYPES.find(a => a.id === blueprint.visual_theme);
-    if (t) return t;
-  }
-  const fallbackId = ARCHETYPE_THEME_FALLBACKS[blueprint.archetype];
-  return ARCHETYPES.find(a => a.id === fallbackId) || ARCHETYPES[0];
-}
+import { resolveTheme } from '../LandingPage';
 
 test('factory_owner blueprint without visual_theme maps to paper-factory, not kirana-shop', () => {
   const blueprint = { archetype: 'factory_owner' };

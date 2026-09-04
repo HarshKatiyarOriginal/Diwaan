@@ -1,6 +1,5 @@
 import { useState } from 'react';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { apiFetch, decodeJwtPayload } from '../api/client';
 
 /**
  * AuthScreen — Real login / register UI.
@@ -22,7 +21,7 @@ export default function AuthScreen({ onAuthSuccess }) {
     try {
       if (mode === 'register') {
         // Step 1: Register (creates Tenant + User)
-        const regRes = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        const regRes = await apiFetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, tenant_name: tenantName }),
@@ -38,7 +37,7 @@ export default function AuthScreen({ onAuthSuccess }) {
       formData.append('username', email);
       formData.append('password', password);
 
-      const loginRes = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const loginRes = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData,
@@ -51,9 +50,8 @@ export default function AuthScreen({ onAuthSuccess }) {
 
       const { access_token } = await loginRes.json();
 
-      // Decode tenant_id from JWT payload (no lib needed — it's not verified here,
-      // just decoded for routing; the server validates it on every request)
-      const payload = JSON.parse(atob(access_token.split('.')[1]));
+      // Safely decode tenant_id from base64url JWT payload
+      const payload = decodeJwtPayload(access_token);
       const tenantId = payload.tenant_id;
 
       // Persist for this browser session only

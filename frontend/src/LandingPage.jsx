@@ -6,17 +6,30 @@ import { KIRANA_SHOP_BLUEPRINT, FARM_BLUEPRINT, PAPER_FACTORY_BLUEPRINT, ICE_CRE
 import { ARCHETYPES, validateTheme } from './themes/archetypes';
 import OnboardingChat from './components/OnboardingChat';
 import { mockStartSession, mockRespond } from './onboardingMock';
+import { apiFetch } from './api/client';
 
 // Explicit opt-in only — never true in production
 const IS_MOCK = import.meta.env.VITE_ONBOARDING_MOCK === 'true';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Fallback when the LLM omits visual_theme (should not happen after T3)
-const ARCHETYPE_THEME_FALLBACKS = {
+export const ARCHETYPE_THEME_FALLBACKS = {
   farmer: 'farm',
   shopkeeper: 'kirana-shop',
   factory_owner: 'paper-factory',
 };
+
+// ─── Theme resolution ────────────────────────────────────────────────────────
+export function resolveTheme(blueprint) {
+  if (!blueprint) return null;
+  // 1. Use LLM-selected theme (new field)
+  if (blueprint.visual_theme) {
+    const t = ARCHETYPES.find(a => a.id === blueprint.visual_theme);
+    if (t) return t;
+  }
+  // 2. Fall back to archetype's canonical theme (never silently kirana-shop)
+  const fallbackId = ARCHETYPE_THEME_FALLBACKS[blueprint.archetype];
+  return ARCHETYPES.find(a => a.id === fallbackId) || ARCHETYPES[0];
+}
 
 function hexToRgba(hex, alpha) {
   if (!hex) return 'transparent';
@@ -28,26 +41,16 @@ function hexToRgba(hex, alpha) {
 
 /**
  * LandingPage — onboarding chat + dashboard renderer.
- *
- * Props:
- *   authToken       — JWT from App (never fetched here)
- *   tenantId        — tenant UUID for API calls that need it
- *   initialBlueprint — pre-loaded Blueprint if user already has a dashboard
- *   onBack          — callback to return to SpecShield
- *   onAuthExpired   — callback when a 401 is received (T7)
- *   onLogout        — callback for the logout button
  */
 function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpired, onLogout }) {
   const [session, setSession] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
-  // If initialBlueprint is provided, show dashboard immediately
   const [activeBlueprint, setActiveBlueprint] = useState(initialBlueprint || null);
   const [sampleMode, setSampleMode] = useState(false);
   const [sampleTab, setSampleTab] = useState('kirana-shop');
 
   // ─── Start / Resume onboarding session ─────────────────────────────────────
   useEffect(() => {
-    // If we already have a blueprint (returning user), skip onboarding entirely
     if (activeBlueprint) return;
 
     async function init() {
@@ -58,15 +61,16 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
         if (IS_MOCK) {
           data = await mockStartSession();
         } else {
-          // T7: Check if there's a pending session to resume after a 401
           const pendingSessionId = sessionStorage.getItem('pending_session_id');
 
           if (pendingSessionId) {
-            // Resume the in-progress session
-            const res = await fetch(
-              `${API_BASE_URL}/api/onboarding/sessions/${pendingSessionId}`,
-              { headers: { Authorization: `Bearer ${authToken}` } }
-            );
+            const res = await apiFetch(`/api/onboarding/sessions/${pendingSessionId}`);
+
+            if (res.status === 401) {
+              onAuthExpired?.();
+              return;
+            }
+
             if (res.ok) {
               const sessionData = await res.json();
               if (sessionData.status === 'in_progress' && sessionData.question) {
@@ -84,14 +88,11 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
                 return;
               }
             }
-            // Session not resumable — fall through to new session
             sessionStorage.removeItem('pending_session_id');
           }
 
-          // Start a fresh session
-          const res = await fetch(`${API_BASE_URL}/api/onboarding/sessions`, {
+          const res = await apiFetch('/api/onboarding/sessions', {
             method: 'POST',
-            headers: { Authorization: `Bearer ${authToken}` },
           });
 
           if (res.status === 401) {
@@ -133,19 +134,17 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
         const turnCount = updatedConversation.filter(m => m.role === 'assistant').length;
         data = await mockRespond(session.id, text, turnCount);
       } else {
-        const res = await fetch(
-          `${API_BASE_URL}/api/onboarding/sessions/${session.id}/respond`,
+        const res = await apiFetch(
+          `/api/onboarding/sessions/${session.id}/respond`,
           {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${authToken}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ answer: text }),
           }
         );
 
-        // T7: 401 → save session id, redirect to login
         if (res.status === 401) {
           sessionStorage.setItem('pending_session_id', session.id);
           onAuthExpired?.();
@@ -197,19 +196,6 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
     setIsThinking(false);
   };
 
-  // ─── Theme resolution (T3 fix) ──────────────────────────────────────────────
-  function resolveTheme(blueprint) {
-    if (!blueprint) return null;
-    // 1. Use LLM-selected theme (new field)
-    if (blueprint.visual_theme) {
-      const t = ARCHETYPES.find(a => a.id === blueprint.visual_theme);
-      if (t) return t;
-    }
-    // 2. Fall back to archetype's canonical theme (never silently kirana-shop)
-    const fallbackId = ARCHETYPE_THEME_FALLBACKS[blueprint.archetype];
-    return ARCHETYPES.find(a => a.id === fallbackId) || ARCHETYPES[0];
-  }
-
   // ─── Shared inline style builder for theme-root ──────────────────────────────
   function themeRootStyle(theme) {
     return {
@@ -240,8 +226,9 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
       {/* Background System */}
       <div className="background-system" style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'var(--vault-sapphire)' }}>
         {ARCHETYPES.map((theme) => {
+          const resolvedTheme = activeBlueprint ? resolveTheme(activeBlueprint) : null;
           const isActive = activeBlueprint
-            ? theme.id === (activeBlueprint.visual_theme || ARCHETYPE_THEME_FALLBACKS[activeBlueprint.archetype])
+            ? (resolvedTheme && theme.id === resolvedTheme.id)
             : theme.id === sampleTab;
           return (
             <img

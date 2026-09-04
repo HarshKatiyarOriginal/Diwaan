@@ -68,10 +68,14 @@ async def generate_blueprint(
     result = await db.execute(select(TenantDashboard).where(TenantDashboard.tenant_id == current_user.tenant_id))
     existing_dashboard = result.scalar_one_or_none()
     
+    params = dict(blueprint.customized_parameters)
+    if blueprint.visual_theme:
+        params["visual_theme"] = blueprint.visual_theme
+
     if existing_dashboard:
         existing_dashboard.archetype_id = blueprint.archetype
         existing_dashboard.business_summary = blueprint.business_summary
-        existing_dashboard.customized_parameters = blueprint.customized_parameters
+        existing_dashboard.customized_parameters = params
         existing_dashboard.active_widgets = [w.model_dump() for w in blueprint.active_widgets]
         existing_dashboard.generated_at = blueprint.generated_at
         existing_dashboard.version = blueprint.version
@@ -80,7 +84,7 @@ async def generate_blueprint(
             tenant_id=current_user.tenant_id,
             archetype_id=blueprint.archetype,
             business_summary=blueprint.business_summary,
-            customized_parameters=blueprint.customized_parameters,
+            customized_parameters=params,
             active_widgets=[w.model_dump() for w in blueprint.active_widgets],
             generated_at=blueprint.generated_at,
             version=blueprint.version
