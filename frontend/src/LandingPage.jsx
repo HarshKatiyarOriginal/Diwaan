@@ -11,7 +11,7 @@ import { apiFetch } from './api/client';
 // Explicit opt-in only — never true in production
 const IS_MOCK = import.meta.env.VITE_ONBOARDING_MOCK === 'true';
 
-// Fallback when the LLM omits visual_theme (should not happen after T3)
+// Fallback when the LLM omits visual_theme
 export const ARCHETYPE_THEME_FALLBACKS = {
   farmer: 'farm',
   shopkeeper: 'kirana-shop',
@@ -21,12 +21,10 @@ export const ARCHETYPE_THEME_FALLBACKS = {
 // ─── Theme resolution ────────────────────────────────────────────────────────
 export function resolveTheme(blueprint) {
   if (!blueprint) return null;
-  // 1. Use LLM-selected theme (new field)
   if (blueprint.visual_theme) {
     const t = ARCHETYPES.find(a => a.id === blueprint.visual_theme);
     if (t) return t;
   }
-  // 2. Fall back to archetype's canonical theme (never silently kirana-shop)
   const fallbackId = ARCHETYPE_THEME_FALLBACKS[blueprint.archetype];
   return ARCHETYPES.find(a => a.id === fallbackId) || ARCHETYPES[0];
 }
@@ -42,12 +40,41 @@ function hexToRgba(hex, alpha) {
 /**
  * LandingPage — onboarding chat + dashboard renderer.
  */
-function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpired, onLogout }) {
+function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpired, onLogout, onOpenSettings, onToast }) {
   const [session, setSession] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
   const [activeBlueprint, setActiveBlueprint] = useState(initialBlueprint || null);
   const [sampleMode, setSampleMode] = useState(false);
   const [sampleTab, setSampleTab] = useState('kirana-shop');
+  const [showReonboardConfirm, setShowReonboardConfirm] = useState(false);
+
+  // ─── Start new session helper ──────────────────────────────────────────────
+  async function startNewSession() {
+    setIsThinking(true);
+    try {
+      let data;
+      if (IS_MOCK) {
+        data = await mockStartSession();
+      } else {
+        const res = await apiFetch('/api/onboarding/sessions', { method: 'POST' });
+        if (res.status === 401) {
+          onAuthExpired?.();
+          return;
+        }
+        if (!res.ok) throw new Error('Failed to start session');
+        data = await res.json();
+      }
+      setSession({
+        id: data.session_id,
+        status: 'in_progress',
+        conversation: [{ role: 'assistant', content: data.question }],
+      });
+    } catch (e) {
+      console.error('Failed to start session:', e);
+    } finally {
+      setIsThinking(false);
+    }
+  }
 
   // ─── Start / Resume onboarding session ─────────────────────────────────────
   useEffect(() => {
@@ -138,9 +165,7 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
           `/api/onboarding/sessions/${session.id}/respond`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ answer: text }),
           }
         );
@@ -176,6 +201,7 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
         });
       } else if (data.status === 'complete' || data.status === 'ready_to_generate') {
         setSession({ ...session, status: 'complete', conversation: updatedConversation });
+        onToast?.('Blueprint compilation complete!', 'success');
         setTimeout(() => {
           setActiveBlueprint(data.blueprint);
           setIsThinking(false);
@@ -195,6 +221,15 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
 
     setIsThinking(false);
   };
+
+  // ─── Handle dashboard re-onboarding (B2) ──────────────────────────────────
+  async function confirmReonboard() {
+    setShowReonboardConfirm(false);
+    setActiveBlueprint(null);
+    setSession(null);
+    onToast?.('Starting fresh onboarding interview…', 'info');
+    await startNewSession();
+  }
 
   // ─── Shared inline style builder for theme-root ──────────────────────────────
   function themeRootStyle(theme) {
@@ -223,6 +258,48 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
 
   return (
     <div className="page">
+      {/* Re-onboard Confirm Modal */}
+      {showReonboardConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(12px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'var(--glass-surface-elevated, #0f1923)', border: '1px solid var(--brushed-gold)',
+            borderRadius: '16px', padding: '36px', maxWidth: '440px', width: '100%',
+            boxShadow: 'var(--shadow-elevation-high)',
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-mono)', color: 'var(--brushed-gold)', fontSize: '1.1rem', marginBottom: '12px' }}>
+              RE-ONBOARD / REFINE DASHBOARD
+            </h3>
+            <p style={{ color: 'var(--muted-slate)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '24px' }}>
+              Starting a new AI onboarding interview will generate a fresh business blueprint and update your active dashboard parameters. Are you sure you want to proceed?
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setShowReonboardConfirm(false)}
+                style={{
+                  flex: 1, padding: '12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'var(--muted-slate)', borderRadius: '8px', fontFamily: 'var(--font-mono)', cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReonboard}
+                style={{
+                  flex: 1.5, padding: '12px', background: 'var(--brushed-gold)', color: 'var(--vault-sapphire)',
+                  border: 'none', borderRadius: '8px', fontFamily: 'var(--font-mono)', fontWeight: 700, cursor: 'pointer',
+                  boxShadow: 'var(--neumorph-primary-raised)',
+                }}
+              >
+                Start Interview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Background System */}
       <div className="background-system" style={{ position: 'fixed', inset: 0, zIndex: 0, background: 'var(--vault-sapphire)' }}>
         {ARCHETYPES.map((theme) => {
@@ -269,6 +346,17 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
             onMouseOut={e => e.target.style.color = 'var(--muted-slate)'}
             >
               ← Spec Shield
+            </button>
+          )}
+          {onOpenSettings && (
+            <button onClick={onOpenSettings} style={{
+              fontFamily: 'var(--font-body)', fontSize: '0.7rem', fontWeight: '600',
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--glass-white)', background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.2)', padding: '6px 14px',
+              borderRadius: '100px', cursor: 'pointer', transition: 'var(--transition-smooth)',
+            }}>
+              ⚙ Settings
             </button>
           )}
           {onLogout && (
@@ -418,9 +506,22 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
 
         ) : activeBlueprint ? (
           <>
-            <p className="section-label" style={{ marginTop: '40px' }}>
-              {initialBlueprint ? 'Your Dashboard' : 'Live Preview'} — {activeBlueprint.archetype.replace('_', ' ')}
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '40px', marginBottom: '16px' }}>
+              <p className="section-label" style={{ margin: 0 }}>
+                {initialBlueprint ? 'Your Dashboard' : 'Live Preview'} — {activeBlueprint.archetype.replace('_', ' ')}
+              </p>
+              <button
+                onClick={() => setShowReonboardConfirm(true)}
+                style={{
+                  background: 'rgba(212,162,76,0.12)', border: '1px solid var(--brushed-gold)',
+                  color: 'var(--brushed-gold)', padding: '6px 16px', borderRadius: '100px',
+                  fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'var(--transition-fast)',
+                }}
+              >
+                ↻ Refine / Re-onboard
+              </button>
+            </div>
             {(() => {
               const theme = resolveTheme(activeBlueprint);
               if (!theme || !validateTheme(theme)) return null;

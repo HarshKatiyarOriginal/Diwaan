@@ -1,0 +1,55 @@
+:root {
+  /* Surface Tokens */
+  --glass-surface-base: rgba(15, 25, 35, 0.65);
+  --glass-surface-elevated: rgba(20, 32, 48, 0.75);
+  --glass-surface-highlight: rgba(30, 48, 72, 0.85);
+
+  /* Blur Radii Tokens */
+  --blur-subtle: blur(8px);
+  --blur-medium: blur(16px);
+  --blur-deep: blur(24px);
+
+  /* Border Tokens */
+  --glass-border-subtle: 1px solid rgba(255, 255, 255, 0.1);
+  --glass-border-gold: 1px solid rgba(212, 162, 76, 0.4);
+  --glass-border-gold-strong: 1px solid rgba(212, 162, 76, 0.8);
+  --glass-border-interactive: 1px solid rgba(255, 255, 255, 0.25);
+
+  /* Neumorphic Primary Action Elevation Tokens */
+  --neumorph-primary-raised:
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+
+  --neumorph-primary-hover:
+    0 6px 18px rgba(212, 162, 76, 0.35),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.4);
+
+  --neumorph-primary-pressed:
+    0 2px 4px rgba(0, 0, 0, 0.6),
+    inset 0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.1);
+
+  /* Shadow Elevation Tokens */
+  --shadow-elevation-low: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-elevation-medium: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-elevation-high: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --shadow-gold-glow: 0 0 20px rgba(212, 162, 76, 0.3);
+
+  /* Accessible Focus Tokens */
+  --focus-ring-gold: 0 0 0 2px rgba(10, 12, 20, 0.9), 0 0 0 4px var(--brushed-gold, #d4a24c);
+
+  /* Motion & Easings Tokens */
+  --ease-vault: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 0.15s;
+  --duration-smooth: 0.3s;
+  --duration-vault: 0.8s;
+}
+
+/* Global focus-visible accessibility styling */
+:focus-visible {
+  outline: none !important;
+  box-shadow: var(--focus-ring-gold) !important;
+}

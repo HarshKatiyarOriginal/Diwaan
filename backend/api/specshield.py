@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, UploadFile, File, Form, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from uuid import UUID
@@ -12,11 +12,24 @@ from ..schemas.specshield import AuditSessionCreate, AuditSessionResponse, FullS
 from ..api.deps import get_current_user
 from ..core.exceptions import APIError
 from ..core.storage import storage
-# We'll import celery task safely later, avoiding circular imports
 
 router = APIRouter(prefix="/api/specshield", tags=["specshield"])
 
-MAX_FILE_SIZE = 25 * 1024 * 1024 # 25MB
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB
+
+
+@router.get("/sessions", response_model=List[AuditSessionResponse])
+async def list_sessions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(AuditSession)
+        .where(AuditSession.tenant_id == current_user.tenant_id)
+        .order_by(AuditSession.created_at.desc())
+    )
+    return result.scalars().all()
+
 
 @router.post("/sessions", response_model=AuditSessionResponse)
 async def create_session(
@@ -33,29 +46,47 @@ async def create_session(
     await db.refresh(new_session)
     return new_session
 
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(
+    session_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(AuditSession).where(
+            AuditSession.id == session_id,
+            AuditSession.tenant_id == current_user.tenant_id
+        )
+    )
+    audit_session = result.scalar_one_or_none()
+    if not audit_session:
+        raise APIError("Session not found or unauthorized", status_code=404)
+
+    await db.delete(audit_session)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/sessions/{session_id}/documents", status_code=202)
 async def upload_document(
     session_id: UUID,
-    doc_type: str = Form(...), # blueprint, invoice, site-plan
+    doc_type: str = Form(...),  # blueprint, invoice, site-plan
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Verify session belongs to tenant
     result = await db.execute(select(AuditSession).where(AuditSession.id == session_id, AuditSession.tenant_id == current_user.tenant_id))
     audit_session = result.scalar_one_or_none()
     if not audit_session:
         raise APIError("Session not found or unauthorized", status_code=404)
-        
-    # Read file content for validation
+
     file_content = await file.read()
     if len(file_content) > MAX_FILE_SIZE:
         raise APIError("File exceeds maximum size of 25MB", status_code=413)
-        
-    # Sniff content type using magic
+
     mime_type = magic.from_buffer(file_content, mime=True)
-    
-    # Handle DWG explicit limitation
+
     if file.filename.lower().endswith(".dwg") or mime_type in ["image/vnd.dwg"]:
         doc_status = "manual_review_required"
         skip_pipeline = True
@@ -64,14 +95,12 @@ async def upload_document(
     else:
         doc_status = "pending"
         skip_pipeline = False
-        
-    # Reset file cursor since we read it
+
     await file.seek(0)
-    
-    # Save via storage abstraction
+
     safe_filename = f"{session_id}_{file.filename}"
     storage_uri = await storage.save(file, safe_filename)
-    
+
     document = Document(
         session_id=session_id,
         doc_type=doc_type,
@@ -82,16 +111,15 @@ async def upload_document(
     db.add(document)
     await db.commit()
     await db.refresh(document)
-    
+
     if skip_pipeline:
         return {"document_id": document.id, "status": "manual_review_required", "message": "DWG files are not supported by the automated pipeline."}
-        
-    # Dispatch Celery Task
+
     from ..worker.tasks import parse_document
-    # For Celery we pass the string IDs
     task = parse_document.delay(str(document.id), str(current_user.tenant_id))
-    
+
     return {"document_id": document.id, "task_id": task.id, "status": "processing"}
+
 
 @router.get("/sessions/{session_id}", response_model=FullSessionResponse)
 async def get_session_state(
@@ -103,13 +131,13 @@ async def get_session_state(
     audit_session = result.scalar_one_or_none()
     if not audit_session:
         raise APIError("Session not found or unauthorized", status_code=404)
-        
+
     docs_result = await db.execute(select(Document).where(Document.session_id == session_id))
     documents = docs_result.scalars().all()
-    
+
     comps_result = await db.execute(select(ComparisonResult).where(ComparisonResult.session_id == session_id))
     comparisons = comps_result.scalars().all()
-    
+
     return FullSessionResponse(
         session=AuditSessionResponse.model_validate(audit_session),
         documents=[DocumentResponse.model_validate(d) for d in documents],

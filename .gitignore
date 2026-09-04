@@ -48,6 +48,7 @@ scripts/
 
 # Runtime / test artifacts
 backend/storage/
+storage/
 *.db
 *.db-journal
 dummy.dwg

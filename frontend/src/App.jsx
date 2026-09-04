@@ -4,6 +4,8 @@ import './App.css';
 import SpecShield from './SpecShield';
 import DiwaanSeal from './components/DiwaanSeal';
 import AuthScreen from './components/AuthScreen';
+import SettingsModal from './components/SettingsModal';
+import Toast from './components/Toast';
 import { apiFetch, setOnAuthExpired, clearSession as clientClearSession } from './api/client';
 
 // Lazy load the heavy Diwaan module
@@ -21,6 +23,12 @@ function App() {
   const [authToken, setAuthToken] = useState(null);
   const [tenantId, setTenantId] = useState(null);
   const [existingBlueprint, setExistingBlueprint] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  function handleToast(message, type = 'info') {
+    setToast({ message, type });
+  }
 
   // ─── 401 mid-flow handler (T7 / Bug 2 Fix) ──────────────────────────────────
   function handleAuthExpired() {
@@ -143,6 +151,8 @@ function App() {
           onLaunchDiwaan={handleLaunchDiwaan}
           onLogout={handleLogout}
           onAuthExpired={handleAuthExpired}
+          onOpenSettings={() => setShowSettings(true)}
+          onToast={handleToast}
         />
       ) : (
         <Suspense fallback={
@@ -157,9 +167,24 @@ function App() {
             onBack={handleBackToSpecShield}
             onAuthExpired={handleAuthExpired}
             onLogout={handleLogout}
+            onOpenSettings={() => setShowSettings(true)}
+            onToast={handleToast}
           />
         </Suspense>
       )}
+
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onToast={handleToast}
+        />
+      )}
+
+      <Toast
+        message={toast?.message}
+        type={toast?.type}
+        onClose={() => setToast(null)}
+      />
     </div>
   );
 }

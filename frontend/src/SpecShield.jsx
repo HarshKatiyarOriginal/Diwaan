@@ -5,10 +5,6 @@ import { apiFetch } from './api/client';
 const TASK_POLL_INTERVAL_MS = 3000;
 const TASK_POLL_MAX_RETRIES = 60; // 3 min max
 
-/**
- * Derive agent-panel entries from real document state.
- * No fabricated agent names — only real pipeline documents appear.
- */
 function deriveAgents(documents) {
   if (!documents.length) return [];
   return documents.map((doc, i) => {
@@ -22,10 +18,6 @@ function deriveAgents(documents) {
   });
 }
 
-/**
- * Derive system log entries from real document + comparison state.
- * Each entry is timestamped at the time it's computed.
- */
 function deriveLogs(documents, comparisons) {
   const logs = [];
   const now = new Date();
@@ -56,21 +48,22 @@ function deriveLogs(documents, comparisons) {
 }
 
 // ─── Project Name Modal ───────────────────────────────────────────────────────
-function ProjectNameModal({ onConfirm, error }) {
+function ProjectNameModal({ onConfirm, error, onCancel }) {
   const [name, setName] = useState('');
   return (
     <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(12px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
     }}>
       <div style={{
-        background: 'var(--ss-surface, #0f1923)', border: '1px solid rgba(255,255,255,0.1)',
+        background: 'var(--glass-surface-elevated, #0f1923)', border: '1px solid rgba(212,162,76,0.4)',
         borderRadius: '12px', padding: '40px', maxWidth: '480px', width: '100%',
+        boxShadow: 'var(--shadow-elevation-high)',
       }}>
-        <h2 style={{ fontFamily: 'var(--font-mono)', color: '#fff', fontSize: '1rem', marginBottom: '8px', letterSpacing: '0.05em' }}>
+        <h2 style={{ fontFamily: 'var(--font-mono)', color: 'var(--brushed-gold)', fontSize: '1rem', marginBottom: '8px', letterSpacing: '0.05em' }}>
           NEW AUDIT SESSION
         </h2>
-        <p style={{ color: '#6b7a99', fontSize: '0.85rem', marginBottom: '24px' }}>
+        <p style={{ color: 'var(--muted-slate)', fontSize: '0.85rem', marginBottom: '24px' }}>
           Enter a project or procurement name to begin document analysis.
         </p>
         {error && (
@@ -97,43 +90,106 @@ function ProjectNameModal({ onConfirm, error }) {
             marginBottom: '16px',
           }}
         />
-        <button
-          disabled={!name.trim()}
-          onClick={() => onConfirm(name.trim())}
-          style={{
-            width: '100%', padding: '12px',
-            background: name.trim() ? '#d4a24c' : 'rgba(212,162,76,0.3)',
-            color: name.trim() ? '#0a0c14' : '#888',
-            border: 'none', borderRadius: '8px',
-            fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.06em',
-            cursor: name.trim() ? 'pointer' : 'not-allowed', fontSize: '0.85rem',
-          }}
-        >
-          CREATE SESSION
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              style={{
+                flex: 1, padding: '12px', background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.2)', color: 'var(--muted-slate)',
+                borderRadius: '8px', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            disabled={!name.trim()}
+            onClick={() => onConfirm(name.trim())}
+            style={{
+              flex: 2, padding: '12px',
+              background: name.trim() ? 'var(--brushed-gold)' : 'rgba(212,162,76,0.3)',
+              color: name.trim() ? 'var(--vault-sapphire)' : '#888',
+              border: 'none', borderRadius: '8px',
+              fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.06em',
+              cursor: name.trim() ? 'pointer' : 'not-allowed', fontSize: '0.85rem',
+              boxShadow: name.trim() ? 'var(--neumorph-primary-raised)' : 'none',
+            }}
+          >
+            CREATE SESSION
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 // ─── SpecShield Main ──────────────────────────────────────────────────────────
-export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuthExpired }) {
+export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuthExpired, onOpenSettings, onToast }) {
   const [highlighted, setHighlighted] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [projectName, setProjectName] = useState(null);
+  const [sessionsList, setSessionsList] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [comparisons, setComparisons] = useState([]);
   const [showProjectModal, setShowProjectModal] = useState(true);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [uploadError, setUploadError] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [docType, setDocType] = useState('blueprint');
 
-  const pollIntervals = useRef({}); // task_id → interval handle
-  const pollCounts = useRef({});     // task_id → retry count
-  const inFlight = useRef({});       // task_id → boolean
+  const pollIntervals = useRef({});
+  const pollCounts = useRef({});
+  const inFlight = useRef({});
   const debounceTimer = useRef(null);
 
-  // ─── Debounced refresh session state (Item 4) ────────────────────────────────
+  // ─── Fetch all tenant sessions (B1) ──────────────────────────────────────────
+  async function loadSessions() {
+    try {
+      const res = await apiFetch('/api/specshield/sessions');
+      if (res.ok) {
+        const data = await res.json();
+        setSessionsList(data);
+        if (data.length > 0 && !sessionId) {
+          setShowProjectModal(false);
+          selectSession(data[0]);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load session history:', e);
+    }
+  }
+
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  function selectSession(sess) {
+    setSessionId(sess.id);
+    setProjectName(sess.project_name);
+    refreshSession(sess.id);
+  }
+
+  // ─── Delete session (B1) ────────────────────────────────────────────────────
+  async function handleDeleteSession(sid) {
+    try {
+      const res = await apiFetch(`/api/specshield/sessions/${sid}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) {
+        onToast?.('Audit session deleted', 'info');
+        setDeleteConfirmId(null);
+        if (sessionId === sid) {
+          setSessionId(null);
+          setProjectName(null);
+          setDocuments([]);
+          setComparisons([]);
+        }
+        await loadSessions();
+      }
+    } catch (e) {
+      onToast?.('Failed to delete session', 'error');
+    }
+  }
+
   function debouncedRefreshSession(sid) {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
@@ -141,7 +197,6 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
     }, 300);
   }
 
-  // ─── Create session (Item 5) ─────────────────────────────────────────────────
   async function createSession(name) {
     setUploadError(null);
     setProjectName(name);
@@ -162,13 +217,14 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
       const data = await res.json();
       setSessionId(data.id);
       setShowProjectModal(false);
+      onToast?.(`Audit session "${name}" created`, 'success');
+      await loadSessions();
     } catch (e) {
       setUploadError(`Session creation failed: ${e.message}`);
-      setShowProjectModal(true); // Re-open modal so user can retry
+      setShowProjectModal(true);
     }
   }
 
-  // ─── Refresh session state ───────────────────────────────────────────────────
   async function refreshSession(sid) {
     if (!sid) return;
     try {
@@ -178,17 +234,15 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
       setDocuments(data.documents || []);
       setComparisons(data.comparisons || []);
     } catch {
-      // Non-fatal; keep showing existing state
+      // Non-fatal
     }
   }
 
-  // ─── Poll Celery task with overlap guard (Item 4) ────────────────────────────
   function pollTask(taskId, sid) {
-    if (pollIntervals.current[taskId]) return; // already polling
+    if (pollIntervals.current[taskId]) return;
     pollCounts.current[taskId] = 0;
 
     const interval = setInterval(async () => {
-      // Guard against overlapping ticks under slow backend
       if (inFlight.current[taskId]) return;
       inFlight.current[taskId] = true;
 
@@ -211,6 +265,9 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
           delete pollCounts.current[taskId];
           delete inFlight.current[taskId];
           debouncedRefreshSession(sid);
+          if (data.status === 'SUCCESS') {
+            onToast?.('Document analysis complete', 'success');
+          }
         }
       } catch {
         // retry next tick
@@ -222,7 +279,6 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
     pollIntervals.current[taskId] = interval;
   }
 
-  // ─── Upload document ─────────────────────────────────────────────────────────
   async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file || !sessionId) return;
@@ -254,8 +310,8 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
       }
 
       const data = await res.json();
+      onToast?.(`Uploaded ${file.filename}`, 'success');
 
-      // Immediately refresh to show the new document
       await refreshSession(sessionId);
 
       if (data.status === 'processing' && data.task_id) {
@@ -272,7 +328,6 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
     }
   }
 
-  // ─── Cleanup polls on unmount (Item 4) ───────────────────────────────────────
   useEffect(() => {
     return () => {
       Object.values(pollIntervals.current).forEach(id => clearInterval(id));
@@ -283,7 +338,6 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
     };
   }, []);
 
-  // ─── Derived state (Item 10 useMemo) ──────────────────────────────────────────
   const agents = useMemo(() => deriveAgents(documents), [documents]);
   const logEntries = useMemo(() => deriveLogs(documents, comparisons), [documents, comparisons]);
 
@@ -297,7 +351,53 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
 
   return (
     <>
-      {showProjectModal && <ProjectNameModal onConfirm={createSession} error={uploadError} />}
+      {showProjectModal && (
+        <ProjectNameModal
+          onConfirm={createSession}
+          error={uploadError}
+          onCancel={sessionsList.length > 0 ? () => setShowProjectModal(false) : null}
+        />
+      )}
+
+      {/* Confirm Delete Session Modal */}
+      {deleteConfirmId && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(12px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+        }}>
+          <div style={{
+            background: 'var(--glass-surface-elevated)', border: '1px solid rgba(239,68,68,0.5)',
+            borderRadius: '12px', padding: '32px', maxWidth: '400px', width: '100%',
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-mono)', color: 'var(--status-critical)', marginBottom: '12px' }}>
+              DELETE AUDIT SESSION
+            </h3>
+            <p style={{ color: 'var(--muted-slate)', fontSize: '0.85rem', marginBottom: '24px' }}>
+              Are you sure you want to delete this session? All uploaded documents and comparison results will be permanently removed.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                style={{
+                  flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)',
+                  color: 'var(--muted-slate)', borderRadius: '6px', cursor: 'pointer', fontFamily: 'monospace',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteSession(deleteConfirmId)}
+                style={{
+                  flex: 1, padding: '10px', background: 'var(--status-critical)', color: '#fff',
+                  border: 'none', borderRadius: '6px', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 'bold',
+                }}
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="ss-app">
         {/* Navbar */}
@@ -309,7 +409,7 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
           </div>
           <div className="ss-nav-center">
             {projectName ? `${projectName} — AUDIT SESSION` : 'New Session'}
-            {sessionId && <span style={{ color: '#6b7a99', marginLeft: 8, fontSize: '0.7rem' }}>#{sessionId.slice(0, 8)}</span>}
+            {sessionId && <span style={{ color: 'var(--muted-slate)', marginLeft: 8, fontSize: '0.7rem' }}>#{sessionId.slice(0, 8)}</span>}
           </div>
           <div className="ss-nav-status">
             <span className="ss-status-dot">
@@ -321,11 +421,20 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
             <button id="launch-diwaan-btn" className="ss-launch-btn" onClick={onLaunchDiwaan}>
               ⬡ Launch DIWAAN
             </button>
+            {onOpenSettings && (
+              <button onClick={onOpenSettings} style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.15)',
+                color: 'var(--glass-white)', padding: '5px 12px', borderRadius: '6px',
+                fontFamily: 'monospace', fontSize: '0.7rem', cursor: 'pointer', marginLeft: '4px',
+              }}>
+                ⚙ Settings
+              </button>
+            )}
             {onLogout && (
               <button onClick={onLogout} style={{
                 background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
-                color: '#6b7a99', padding: '5px 12px', borderRadius: '6px',
-                fontFamily: 'monospace', fontSize: '0.7rem', cursor: 'pointer', marginLeft: '8px',
+                color: 'var(--muted-slate)', padding: '5px 12px', borderRadius: '6px',
+                fontFamily: 'monospace', fontSize: '0.7rem', cursor: 'pointer', marginLeft: '4px',
               }}>
                 Sign Out
               </button>
@@ -337,7 +446,63 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
         <div className="ss-body">
           {/* Sidebar */}
           <aside className="ss-sidebar">
-            {/* Project Info */}
+            {/* Session Switcher (B1) */}
+            <div className="ss-sidebar-section">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div className="ss-sidebar-label" style={{ marginBottom: 0 }}>Audit Sessions</div>
+                <button
+                  onClick={() => setShowProjectModal(true)}
+                  style={{
+                    background: 'transparent', border: '1px solid var(--brushed-gold)', color: 'var(--brushed-gold)',
+                    borderRadius: '4px', padding: '2px 8px', fontSize: '0.65rem', fontFamily: 'monospace', cursor: 'pointer',
+                  }}
+                >
+                  + New
+                </button>
+              </div>
+
+              {sessionsList.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto' }}>
+                  {sessionsList.map(s => (
+                    <div
+                      key={s.id}
+                      onClick={() => selectSession(s)}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        background: s.id === sessionId ? 'rgba(212,162,76,0.15)' : 'rgba(255,255,255,0.03)',
+                        border: s.id === sessionId ? '1px solid var(--brushed-gold)' : '1px solid rgba(255,255,255,0.06)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justify: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: s.id === sessionId ? 600 : 400, color: s.id === sessionId ? 'var(--brushed-gold)' : 'var(--glass-white)' }}>
+                          {s.project_name}
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--muted-slate)', fontFamily: 'monospace' }}>
+                          #{s.id.slice(0, 8)}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(s.id); }}
+                        style={{
+                          background: 'transparent', border: 'none', color: 'rgba(239,68,68,0.7)',
+                          cursor: 'pointer', padding: '2px 6px', fontSize: '0.8rem',
+                        }}
+                        title="Delete Session"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Active Project Info */}
             <div className="ss-sidebar-section">
               <div className="ss-sidebar-label">Active Project</div>
               <div className="ss-project-name">{projectName || '—'}</div>
@@ -362,10 +527,10 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
                   <option value="site-plan">Site Plan</option>
                 </select>
                 <label style={{
-                  display: 'block', padding: '8px 12px',
-                  background: uploading ? 'rgba(212,162,76,0.15)' : 'rgba(255,255,255,0.05)',
-                  border: '1px dashed rgba(255,255,255,0.2)', borderRadius: '6px',
-                  color: '#8a95ab', fontFamily: 'monospace', fontSize: '0.72rem',
+                  display: 'block', padding: '10px 12px',
+                  background: uploading ? 'rgba(212,162,76,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: '1px dashed rgba(255,255,255,0.2)', borderRadius: '8px',
+                  color: 'var(--muted-slate)', fontFamily: 'monospace', fontSize: '0.72rem',
                   cursor: uploading ? 'not-allowed' : 'pointer', textAlign: 'center',
                 }}>
                   {uploading ? 'Uploading…' : '+ Drop file or click (PDF / JPEG / PNG, max 25 MB)'}
@@ -471,7 +636,6 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
 
           {/* Main Workspace */}
           <main className="ss-workspace">
-            {/* Breadcrumb */}
             <div className="ss-breadcrumb">
               <span>SPEC SHIELD</span>
               <span>/</span>
@@ -486,17 +650,17 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
               )}
             </div>
 
-            {/* Empty / Loading State (Item 5 Fix) */}
             {!sessionId && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', color: '#6b7a99', fontFamily: 'monospace', fontSize: '0.9rem', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', color: 'var(--muted-slate)', fontFamily: 'monospace', fontSize: '0.9rem', gap: '16px' }}>
                 {uploadError ? (
                   <>
                     <div style={{ color: '#fca5a5', textAlign: 'center', maxWidth: '400px' }}>{uploadError}</div>
                     <button
                       onClick={() => setShowProjectModal(true)}
                       style={{
-                        padding: '10px 20px', background: '#d4a24c', color: '#0a0c14',
+                        padding: '10px 20px', background: 'var(--brushed-gold)', color: 'var(--vault-sapphire)',
                         border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 'bold',
+                        boxShadow: 'var(--neumorph-primary-raised)',
                       }}
                     >
                       Retry Session Creation
@@ -509,21 +673,20 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
             )}
 
             {sessionId && comparisons.length === 0 && documents.length === 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', gap: '16px', color: '#6b7a99', fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', gap: '16px', color: 'var(--muted-slate)', fontFamily: 'monospace', fontSize: '0.9rem', textAlign: 'center' }}>
                 <div>Session ready. Upload a <strong>blueprint</strong> and an <strong>invoice</strong> to begin comparison.</div>
                 <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>Supported: PDF · JPEG · PNG (max 25 MB each)</div>
               </div>
             )}
 
             {sessionId && comparisons.length === 0 && documents.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60%', color: '#6b7a99', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60%', color: 'var(--muted-slate)', fontFamily: 'monospace', fontSize: '0.85rem' }}>
                 {documents.some(d => d.status === 'processing')
                   ? '⟳ Documents are being processed by the AI pipeline…'
                   : 'Upload both a blueprint and an invoice to trigger comparison.'}
               </div>
             )}
 
-            {/* Critical Alert */}
             {errorCount > 0 && (
               <div className="ss-alert-banner">
                 <div className="ss-alert-icon">
@@ -541,10 +704,8 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
               </div>
             )}
 
-            {/* Comparison Grid */}
             {comparisons.length > 0 && (
               <div className="ss-comparison-grid">
-                {/* Blueprint Panel */}
                 <div className="ss-doc-panel">
                   <div className="ss-doc-header">
                     <span className="ss-doc-type blueprint">▶ {blueprintDocs[0]?.doc_type || 'Blueprint'}</span>
@@ -567,7 +728,6 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
                   </div>
                 </div>
 
-                {/* Center Connector */}
                 <div className="ss-connector">
                   <div className="ss-connector-line" />
                   <div className="ss-connector-arrow">↓</div>
@@ -576,7 +736,6 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
                   <div className="ss-connector-line" />
                 </div>
 
-                {/* Invoice Panel */}
                 <div className="ss-doc-panel">
                   <div className="ss-doc-header">
                     <span className="ss-doc-type invoice">▶ {invoiceDocs[0]?.doc_type || 'Invoice'}</span>
@@ -601,7 +760,6 @@ export default function SpecShield({ authToken, onLaunchDiwaan, onLogout, onAuth
               </div>
             )}
 
-            {/* Log Bar */}
             {logEntries.length > 0 && (
               <div className="ss-log-bar">
                 {logEntries.map((e, i) => (
