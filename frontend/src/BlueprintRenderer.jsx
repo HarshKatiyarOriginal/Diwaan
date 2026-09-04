@@ -9,7 +9,7 @@ import StatusBadge from './components/StatusBadge';
 import LedgerToggle from './components/LedgerToggle';
 import ListWidget from './components/ListWidget';
 
-const COMPONENT_REGISTRY = {
+export const COMPONENT_REGISTRY = {
     MetricCard,
     DataTable,
     ChartWidget,

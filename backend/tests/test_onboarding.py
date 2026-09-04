@@ -3,7 +3,7 @@ from httpx import AsyncClient
 from unittest.mock import patch, MagicMock
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from uuid import uuid4
+import uuid
 
 from backend.models.onboarding import OnboardingSession
 from backend.models.user import User
@@ -49,8 +49,7 @@ async def test_onboarding_happy_path(async_client: AsyncClient, db_session: Asyn
     assert data["status"] == "in_progress"
     assert data["question"] == "How many employees do you have?"
     
-    # Check data accumulation in DB
-    result = await db_session.execute(select(OnboardingSession).where(OnboardingSession.id == session_id))
+    result = await db_session.execute(select(OnboardingSession).where(OnboardingSession.id == uuid.UUID(session_id)))
     session = result.scalar_one()
     assert session.collected_data == {"core_business": "Bicycle manufacturing"}
     
@@ -71,7 +70,7 @@ async def test_onboarding_happy_path(async_client: AsyncClient, db_session: Asyn
                 business_summary="Cycle factory",
                 customized_parameters={"primary_color": "#112233"},
                 active_widgets=[
-                    Widget(component_name="MetricCard", grid_position={"col":1, "span_x":2, "row":1, "span_y":1}, props={"title": "Revenue", "value": "1M"})
+                    Widget(widget_id="w-1", title="Revenue", component_name="MetricCard", grid_position={"col":1, "span_x":2, "row":1, "span_y":1}, props={"value": "1M"})
                 ]
             )
     
@@ -96,8 +95,8 @@ async def test_onboarding_happy_path(async_client: AsyncClient, db_session: Asyn
 @pytest.mark.asyncio
 async def test_onboarding_tenant_isolation(async_client: AsyncClient, db_session: AsyncSession, test_user: dict):
     # Setup a session for a different tenant
-    other_tenant_id = uuid4()
-    other_session_id = uuid4()
+    other_tenant_id = uuid.uuid4()
+    other_session_id = uuid.uuid4()
     session = OnboardingSession(id=other_session_id, tenant_id=other_tenant_id)
     db_session.add(session)
     await db_session.commit()
@@ -132,7 +131,7 @@ async def test_onboarding_truncation(async_client: AsyncClient, db_session: Asyn
     session_id = response.json()["session_id"]
     
     # Max questions is 15. The start_session uses 1. We must respond 14 times.
-    for _ in range(13):
+    for _ in range(14):
         res = await async_client.post(
             f"/api/onboarding/sessions/{session_id}/respond",
             json={"answer": "stuff"},
@@ -165,6 +164,6 @@ async def test_onboarding_truncation(async_client: AsyncClient, db_session: Asyn
     assert data["status"] == "complete"
     assert data["blueprint"]["archetype"] == "shopkeeper"
     
-    result = await db_session.execute(select(OnboardingSession).where(OnboardingSession.id == session_id))
+    result = await db_session.execute(select(OnboardingSession).where(OnboardingSession.id == uuid.UUID(session_id)))
     session = result.scalar_one()
     assert session.truncated is True

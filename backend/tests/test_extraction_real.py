@@ -4,7 +4,7 @@ import os
 from unittest.mock import patch, MagicMock
 from backend.worker.tasks import _parse_document_async
 from backend.models.specshield import Document
-from backend.db.session import TestingSessionLocal
+from backend.tests.conftest import TestingSessionLocal
 from backend.schemas.specshield import DocumentSpecsExtracted, SpecParam
 from backend.core.storage import storage
 from sqlalchemy.future import select

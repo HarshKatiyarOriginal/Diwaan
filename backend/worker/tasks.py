@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from typing import Optional
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,9 +25,10 @@ def parse_document(document_id: str, tenant_id: str):
     return async_to_sync(_parse_document_async(document_id, tenant_id))
 
 async def _parse_document_async(document_id: str, tenant_id: str):
+    doc_uuid = uuid.UUID(document_id) if isinstance(document_id, str) else document_id
     async with AsyncSessionLocal() as db:
         # 1. Fetch document
-        result = await db.execute(select(Document).where(Document.id == document_id))
+        result = await db.execute(select(Document).where(Document.id == doc_uuid))
         document = result.scalar_one_or_none()
         
         if not document:

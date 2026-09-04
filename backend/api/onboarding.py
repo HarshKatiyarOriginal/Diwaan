@@ -142,6 +142,14 @@ async def respond(
     Task: Return a new Blueprint JSON object. You may add, remove, or modify active_widgets and customized_parameters based on the business data.
     IMPORTANT: Every widget's `component_name` MUST be one of: MetricCard, DataTable, ChartWidget, StatusBadge, LedgerToggle, ListWidget. Do NOT invent new component names.
     CRITICAL INSTRUCTION: Every MetricCard/DataTable/ChartWidget you generate must be traceable directly to a specific fact in Business Data below. If a fact is missing for a metric you'd normally include, omit the widget entirely rather than fabricating a placeholder value or specific-sounding estimate.
+    
+    VISUAL THEME: You MUST also set the `visual_theme` field to exactly one of these IDs:
+    "kirana-shop" — general retail, grocery, FMCG, corner shops
+    "farm" — agriculture, crops, horticulture, dairy farming, fishery
+    "paper-factory" — paper, textiles, light manufacturing, printing, packaging
+    "ice-cream-factory" — cold-chain, frozen food, dairy processing, beverages, food manufacturing
+    "tiles-factory" — ceramics, heavy industrial, construction materials, mining, foundry
+    Choose the ID that best matches the business described in Business Data.
     """
     
     blueprint = await generate_structured_output(prompt=mutation_prompt, schema=Blueprint)
@@ -153,17 +161,24 @@ async def respond(
     if existing_dashboard:
         existing_dashboard.archetype_id = blueprint.archetype
         existing_dashboard.business_summary = blueprint.business_summary
-        existing_dashboard.customized_parameters = blueprint.customized_parameters
+        # Persist visual_theme into customized_parameters for later retrieval
+        params = dict(blueprint.customized_parameters)
+        if blueprint.visual_theme:
+            params["visual_theme"] = blueprint.visual_theme
+        existing_dashboard.customized_parameters = params
         existing_dashboard.active_widgets = [w.model_dump() for w in blueprint.active_widgets]
         existing_dashboard.generated_at = blueprint.generated_at
         existing_dashboard.version = blueprint.version
         dash = existing_dashboard
     else:
+        params = dict(blueprint.customized_parameters)
+        if blueprint.visual_theme:
+            params["visual_theme"] = blueprint.visual_theme
         dash = TenantDashboard(
             tenant_id=current_user.tenant_id,
             archetype_id=blueprint.archetype,
             business_summary=blueprint.business_summary,
-            customized_parameters=blueprint.customized_parameters,
+            customized_parameters=params,
             active_widgets=[w.model_dump() for w in blueprint.active_widgets],
             generated_at=blueprint.generated_at,
             version=blueprint.version
@@ -174,7 +189,7 @@ async def respond(
     await db.refresh(dash)
     
     session.status = "complete"
-    session.resulting_dashboard_id = dash.id
+    session.resulting_dashboard_id = dash.tenant_id
     await db.commit()
     
     return RespondResponse(
@@ -206,7 +221,7 @@ async def get_session(
             
     blueprint = None
     if session.status == "complete" and session.resulting_dashboard_id:
-        dash_res = await db.execute(select(TenantDashboard).where(TenantDashboard.id == session.resulting_dashboard_id))
+        dash_res = await db.execute(select(TenantDashboard).where(TenantDashboard.tenant_id == session.resulting_dashboard_id))
         dash = dash_res.scalar_one_or_none()
         if dash:
             blueprint = Blueprint(

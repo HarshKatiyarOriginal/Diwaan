@@ -47,6 +47,15 @@ async def generate_blueprint(
     
     Task: Return a new Blueprint JSON object. You may add, remove, or modify active_widgets and customized_parameters based on the business description.
     IMPORTANT: Every widget's `component_name` MUST be one of: MetricCard, DataTable, ChartWidget, StatusBadge, LedgerToggle, ListWidget. Do NOT invent new component names.
+    CRITICAL INSTRUCTION: Every MetricCard/DataTable/ChartWidget you generate must be traceable directly to a specific fact in the business description. If a fact is missing, omit the widget rather than fabricating a value.
+    
+    VISUAL THEME: You MUST also set the `visual_theme` field to exactly one of these IDs:
+    "kirana-shop" — general retail, grocery, FMCG, corner shops
+    "farm" — agriculture, crops, horticulture, dairy farming, fishery
+    "paper-factory" — paper, textiles, light manufacturing, printing, packaging
+    "ice-cream-factory" — cold-chain, frozen food, dairy processing, beverages, food manufacturing
+    "tiles-factory" — ceramics, heavy industrial, construction materials, mining, foundry
+    Choose the ID that best matches the business described.
     """
     
     blueprint = await generate_structured_output(
@@ -100,6 +109,7 @@ async def get_dashboard(
     # Reconstruct Blueprint from DB
     return Blueprint(
         archetype=dashboard.archetype_id,
+        visual_theme=dashboard.customized_parameters.get("visual_theme"),
         business_summary=dashboard.business_summary,
         customized_parameters=dashboard.customized_parameters,
         active_widgets=dashboard.active_widgets,

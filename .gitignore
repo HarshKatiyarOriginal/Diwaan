@@ -45,3 +45,9 @@ build/
 transcript_*.md
 zip_clean.py
 scripts/
+
+# Runtime / test artifacts
+backend/storage/
+*.db
+*.db-journal
+dummy.dwg

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .models.specshield import AuditSession, ExtractedData
+from .models.specshield import AuditSession, Document, ComparisonResult
 from .models.diwaan import Archetype, TenantDashboard
 from .models.onboarding import OnboardingSession
 from backend.api import auth, diwaan, specshield, tasks, onboarding

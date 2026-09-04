@@ -142,11 +142,11 @@
 
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .glass-card {
-    background: color-mix(in srgb, var(--surface) 55%, transparent);
+    background: var(--surface-glass, rgba(10, 22, 40, 0.55));
     backdrop-filter: blur(16px) saturate(140%);
     -webkit-backdrop-filter: blur(16px) saturate(140%);
-    border: 1px solid color-mix(in srgb, var(--surface-muted) 40%, transparent);
-    box-shadow: 0 8px 32px color-mix(in srgb, black 25%, transparent);
+    border: 1px solid var(--surface-muted-glass, rgba(255, 255, 255, 0.05));
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   }
 }
 
@@ -219,7 +219,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 10%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent-glass, rgba(255,255,255,0.1)), transparent);
   background-size: 200% 100%;
   pointer-events: none;
   opacity: 0.5;

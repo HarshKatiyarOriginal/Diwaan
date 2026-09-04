@@ -26,8 +26,24 @@ services:
           type: redis
           name: diwaan-redis
           property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: diwaan-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: diwaan-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
       - key: GEMINI_API_KEY
         sync: false # Requires manual entry in Render dashboard
+      - key: GEMINI_MODEL
+        value: "gemini-1.5-flash"
+      - key: CORS_ORIGINS
+        value: "*"
 
   # The Celery Worker
   - type: worker
@@ -45,5 +61,22 @@ services:
           type: redis
           name: diwaan-redis
           property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: diwaan-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: diwaan-redis
+          property: connectionString
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: diwaan-api
+          property: SECRET_KEY
       - key: GEMINI_API_KEY
         sync: false
+      - key: GEMINI_MODEL
+        value: "gemini-1.5-flash"

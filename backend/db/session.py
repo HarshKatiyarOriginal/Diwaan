@@ -7,7 +7,7 @@ from ..core.config import settings
 DATABASE_URL = os.getenv("TEST_DATABASE_URL", settings.DATABASE_URL)
 
 engine = create_async_engine(DATABASE_URL, echo=False)
-AsyncSessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncSessionLocal = async_sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 Base = declarative_base()
 
