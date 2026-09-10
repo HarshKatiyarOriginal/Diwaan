@@ -1,246 +1,232 @@
+"""
+seed_archetypes.py — Archetype base templates (binding catalog format).
+
+Templates are PRESENTATION-ONLY: they define widget layout, grid positions,
+component types, and DataBinding keys. No literal data values.
+Real data is entered by the tenant via the dashboard data API.
+
+Run with:
+    $env:PYTHONPATH="c:\\Users\\Lenovo\\OneDrive\\Desktop\\Diwaan"
+    python -m backend.scripts.seed_archetypes
+"""
 import asyncio
 import os
 import sys
 
-# Add project root to path
 import backend.models
 from backend.models import Base, Archetype
 from backend.db.session import AsyncSessionLocal, engine
 from sqlalchemy.future import select
 
+
 # ─── FARMER ────────────────────────────────────────────────────────────────────
-# Matches frontend "farm" theme. Covers: crop cycle, irrigation, input costs,
-# harvest yield, mandi prices, farm activity log.
+# Binding catalog for agriculture businesses.
+# Covers: crop cycle, irrigation, input costs, harvest yield, mandi prices.
 farmer_base = {
+    "binding_catalog": [
+        {"key": "acres_under_cultivation", "kind": "metric", "label": "Cultivation Area", "unit": "Acres", "input": "number"},
+        {"key": "irrigation_status",       "kind": "status", "label": "Irrigation System", "input": "select",
+         "options": ["Pump Active", "Drip Running", "Offline", "Maintenance"]},
+        {"key": "crop_rotation_table",     "kind": "table",  "label": "Crop Rotation Status", "input": "none",
+         "columns": ["Crop", "Parcel", "Growth Stage", "Expected Harvest"]},
+        {"key": "seasonal_yield_series",   "kind": "series", "label": "Seasonal Yield (Quintal)", "unit": "Q", "input": "number"},
+        {"key": "farm_activity_log",       "kind": "list",   "label": "Recent Farm Activity", "input": "text"},
+        {"key": "season_ledger",           "kind": "action", "label": "Close Season Accounts", "input": "none"},
+        {"key": "input_cost_per_season",   "kind": "metric", "label": "Input Cost This Season", "unit": "₹", "input": "currency"},
+        {"key": "mandi_price_wheat",       "kind": "metric", "label": "Mandi Price (Wheat)", "unit": "₹/Q", "input": "currency"},
+    ],
     "widgets": [
         {
             "widget_id": "w-farm-1",
             "component_name": "MetricCard",
             "title": "Active Cultivation Area",
-            "props": {
-                "value": "{{acres_under_cultivation}}",
-                "unit": "Acres",
-                "delta": "{{fallow_change}}",
-                "sparklineData": []
-            },
-            "grid_position": {"row": 1, "col": 1, "span_x": 1, "span_y": 1}
+            "props": {"unit": "Acres"},
+            "data_binding": {"key": "acres_under_cultivation", "kind": "metric", "label": "Cultivation Area", "unit": "Acres", "input": "number"},
+            "grid_position": {"row": 1, "col": 1, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-farm-2",
             "component_name": "StatusBadge",
             "title": "Irrigation System",
-            "props": {
-                "status": "ok",
-                "label": "Pump Active — Flow Normal"
-            },
-            "grid_position": {"row": 1, "col": 2, "span_x": 1, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "irrigation_status", "kind": "status", "label": "Irrigation System", "input": "select",
+                             "options": ["Pump Active", "Drip Running", "Offline", "Maintenance"]},
+            "grid_position": {"row": 1, "col": 2, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-farm-3",
             "component_name": "DataTable",
             "title": "Crop Rotation Status",
-            "props": {
-                "columns": ["Crop", "Parcel", "Growth Stage", "Expected Harvest"],
-                "rows": [
-                    ["Wheat", "Parcel A", "Vegetative", "April 15"],
-                    ["Mustard", "Parcel B", "Flowering", "March 20"],
-                    ["Sugarcane", "Parcel C", "Harvesting", "Current"]
-                ]
-            },
-            "grid_position": {"row": 2, "col": 1, "span_x": 2, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "crop_rotation_table", "kind": "table", "label": "Crop Rotation Status",
+                             "columns": ["Crop", "Parcel", "Growth Stage", "Expected Harvest"], "input": "none"},
+            "grid_position": {"row": 2, "col": 1, "span_x": 2, "span_y": 1},
         },
         {
             "widget_id": "w-farm-4",
             "component_name": "ChartWidget",
             "title": "Seasonal Yield Trend (Quintal)",
-            "props": {
-                "chartType": "donut",
-                "data": [
-                    {"label": "Kharif", "val": 40},
-                    {"label": "Rabi", "val": 35},
-                    {"label": "Zaid", "val": 25}
-                ]
-            },
-            "grid_position": {"row": 3, "col": 1, "span_x": 1, "span_y": 1}
+            "props": {"chartType": "line"},
+            "data_binding": {"key": "seasonal_yield_series", "kind": "series", "label": "Seasonal Yield", "unit": "Q", "input": "number"},
+            "grid_position": {"row": 3, "col": 1, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-farm-5",
             "component_name": "ListWidget",
             "title": "Recent Farm Activity",
-            "props": {
-                "items": [
-                    {"icon": "🚜", "text": "Tractor serviced", "meta": "Completed", "dotColor": "var(--status-ok)"},
-                    {"icon": "💧", "text": "Urea application (Parcel B)", "meta": "Today", "dotColor": "var(--status-ok)"},
-                    {"icon": "📈", "text": "Mandi price update (Wheat)", "meta": "₹2,275/Q", "dotColor": "var(--status-warning)"}
-                ]
-            },
-            "grid_position": {"row": 3, "col": 2, "span_x": 1, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "farm_activity_log", "kind": "list", "label": "Farm Activity", "input": "text"},
+            "grid_position": {"row": 3, "col": 2, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-farm-6",
             "component_name": "LedgerToggle",
             "title": "Season Ledger",
-            "props": {"label": "Close Season Accounts", "isArmed": False},
-            "grid_position": {"row": 4, "col": 1, "span_x": 2, "span_y": 1}
-        }
-    ]
+            "props": {"label": "Close Season Accounts"},
+            "data_binding": {"key": "season_ledger", "kind": "action", "label": "Close Season Accounts", "input": "none"},
+            "grid_position": {"row": 4, "col": 1, "span_x": 2, "span_y": 1},
+        },
+    ],
 }
 
 # ─── SHOPKEEPER ─────────────────────────────────────────────────────────────────
-# Matches frontend "kirana-shop" theme. Covers: daily POS revenue, low-stock
-# inventory, sales by category, recent transactions, compliance status, EOD ledger.
+# Binding catalog for retail / kirana businesses.
+# Covers: daily revenue, inventory, sales by category, transactions, compliance.
 shopkeeper_base = {
+    "binding_catalog": [
+        {"key": "daily_revenue",        "kind": "metric", "label": "Today's Revenue", "unit": "₹", "input": "currency"},
+        {"key": "revenue_series",       "kind": "series", "label": "Revenue Trend", "unit": "₹", "input": "currency"},
+        {"key": "compliance_status",    "kind": "status", "label": "Tax & Compliance", "input": "select",
+         "options": ["OK", "GST Due", "FSSAI Expiry", "Pending"]},
+        {"key": "inventory_table",      "kind": "table",  "label": "Inventory — Low Stock", "input": "none",
+         "columns": ["SKU / Category", "Stock Level", "Reorder Threshold", "Status"]},
+        {"key": "sales_by_category",    "kind": "series", "label": "Sales by Category", "input": "number"},
+        {"key": "transaction_log",      "kind": "list",   "label": "Recent Transactions", "input": "text"},
+        {"key": "eod_ledger",           "kind": "action", "label": "Finalize Daily Accounts", "input": "none"},
+        {"key": "monthly_revenue",      "kind": "metric", "label": "This Month Revenue", "unit": "₹", "input": "currency"},
+    ],
     "widgets": [
         {
             "widget_id": "w-sk-1",
             "component_name": "MetricCard",
             "title": "Today's Revenue",
-            "props": {
-                "value": "₹{{daily_revenue}}",
-                "unit": "",
-                "delta": "{{revenue_delta}}",
-                "sparklineData": []
-            },
-            "grid_position": {"row": 1, "col": 1, "span_x": 2, "span_y": 1}
+            "props": {"unit": "₹"},
+            "data_binding": {"key": "daily_revenue", "kind": "metric", "label": "Today's Revenue", "unit": "₹", "input": "currency"},
+            "grid_position": {"row": 1, "col": 1, "span_x": 2, "span_y": 1},
         },
         {
             "widget_id": "w-sk-2",
             "component_name": "StatusBadge",
             "title": "Tax & Compliance",
-            "props": {
-                "status": "pending",
-                "label": "GST Filing Due in 3 Days"
-            },
-            "grid_position": {"row": 1, "col": 3, "span_x": 1, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "compliance_status", "kind": "status", "label": "Tax & Compliance", "input": "select",
+                             "options": ["OK", "GST Due", "FSSAI Expiry", "Pending"]},
+            "grid_position": {"row": 1, "col": 3, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-sk-3",
             "component_name": "DataTable",
             "title": "Inventory — Low Stock Alert",
-            "props": {
-                "columns": ["SKU / Category", "Stock Level", "Reorder Threshold", "Status"],
-                "rows": [
-                    ["Staples (Rice/Dal)", "450 kg", "200 kg", "OK"],
-                    ["Packaged Goods", "120 units", "50 units", "OK"],
-                    ["Dairy / Perishables", "15 units", "20 units", "REORDER"]
-                ]
-            },
-            "grid_position": {"row": 2, "col": 1, "span_x": 3, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "inventory_table", "kind": "table", "label": "Inventory — Low Stock",
+                             "columns": ["SKU / Category", "Stock Level", "Reorder Threshold", "Status"], "input": "none"},
+            "grid_position": {"row": 2, "col": 1, "span_x": 3, "span_y": 1},
         },
         {
             "widget_id": "w-sk-4",
             "component_name": "ChartWidget",
             "title": "Sales by Category",
-            "props": {
-                "chartType": "donut",
-                "data": [
-                    {"label": "Staples", "val": 50},
-                    {"label": "Snacks / FMCG", "val": 30},
-                    {"label": "Dairy", "val": 20}
-                ]
-            },
-            "grid_position": {"row": 3, "col": 1, "span_x": 1, "span_y": 1}
+            "props": {"chartType": "donut"},
+            "data_binding": {"key": "sales_by_category", "kind": "series", "label": "Sales by Category", "input": "number"},
+            "grid_position": {"row": 3, "col": 1, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-sk-5",
             "component_name": "ListWidget",
             "title": "Recent Transactions",
-            "props": {
-                "items": [
-                    {"icon": "🛍️", "text": "Customer #1042", "meta": "₹450", "dotColor": "var(--status-ok)"},
-                    {"icon": "🛒", "text": "Supplier Payment — Amul", "meta": "-₹12,000", "dotColor": "var(--status-warning)"},
-                    {"icon": "🛍️", "text": "Customer #1043", "meta": "₹1,200", "dotColor": "var(--status-ok)"}
-                ]
-            },
-            "grid_position": {"row": 3, "col": 2, "span_x": 1, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "transaction_log", "kind": "list", "label": "Recent Transactions", "input": "text"},
+            "grid_position": {"row": 3, "col": 2, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-sk-6",
             "component_name": "LedgerToggle",
             "title": "End-of-Day Ledger",
-            "props": {"label": "Finalize Daily Accounts", "isArmed": False},
-            "grid_position": {"row": 4, "col": 1, "span_x": 2, "span_y": 1}
-        }
-    ]
+            "props": {"label": "Finalize Daily Accounts"},
+            "data_binding": {"key": "eod_ledger", "kind": "action", "label": "Finalize Daily Accounts", "input": "none"},
+            "grid_position": {"row": 4, "col": 1, "span_x": 2, "span_y": 1},
+        },
+    ],
 }
 
 # ─── FACTORY OWNER ───────────────────────────────────────────────────────────────
-# Matches frontend "paper-factory" default theme (may be overridden to
-# ice-cream-factory or tiles-factory by visual_theme). Covers: production rate,
-# machine uptime, supply chain stock, assembly status, shift log, batch ledger.
+# Binding catalog for manufacturing businesses.
+# Covers: production rate, machine uptime, supply chain, shift log, batch ledger.
 factory_base = {
+    "binding_catalog": [
+        {"key": "production_rate",       "kind": "metric", "label": "Production Rate", "unit": "units/hr", "input": "number"},
+        {"key": "production_series",     "kind": "series", "label": "Production History", "unit": "units/hr", "input": "number"},
+        {"key": "line_status",           "kind": "status", "label": "Assembly Line Status", "input": "select",
+         "options": ["Running", "Idle", "Maintenance", "Fault"]},
+        {"key": "supply_chain_table",    "kind": "table",  "label": "Raw Material Supply Chain", "input": "none",
+         "columns": ["Material", "Stock Level", "Supplier", "Status"]},
+        {"key": "machine_uptime_series", "kind": "series", "label": "Machine Uptime", "unit": "%", "input": "number"},
+        {"key": "shift_activity_log",    "kind": "list",   "label": "Shift Activity Log", "input": "text"},
+        {"key": "shift_ledger",          "kind": "action", "label": "Finalize Shift Batch", "input": "none"},
+        {"key": "defect_rate",           "kind": "metric", "label": "Defect Rate", "unit": "%", "input": "number"},
+    ],
     "widgets": [
         {
             "widget_id": "w-fo-1",
             "component_name": "MetricCard",
             "title": "Production Rate",
-            "props": {
-                "value": "{{production_rate}}",
-                "unit": "units/hr",
-                "delta": "{{production_delta}}",
-                "sparklineData": []
-            },
-            "grid_position": {"row": 1, "col": 1, "span_x": 1, "span_y": 1}
+            "props": {"unit": "units/hr"},
+            "data_binding": {"key": "production_rate", "kind": "metric", "label": "Production Rate", "unit": "units/hr", "input": "number"},
+            "grid_position": {"row": 1, "col": 1, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-fo-2",
             "component_name": "StatusBadge",
             "title": "Assembly Line Status",
-            "props": {
-                "status": "ok",
-                "label": "Line 1 Running — No Faults"
-            },
-            "grid_position": {"row": 1, "col": 2, "span_x": 1, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "line_status", "kind": "status", "label": "Assembly Line Status", "input": "select",
+                             "options": ["Running", "Idle", "Maintenance", "Fault"]},
+            "grid_position": {"row": 1, "col": 2, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-fo-3",
             "component_name": "DataTable",
             "title": "Raw Material Supply Chain",
-            "props": {
-                "columns": ["Material", "Stock Level", "Supplier", "Status"],
-                "rows": [
-                    ["Primary Input", "78%", "Vendor A", "OK"],
-                    ["Secondary Input", "55%", "Vendor B", "OK"],
-                    ["Consumable", "12%", "Vendor C", "CRITICAL"]
-                ]
-            },
-            "grid_position": {"row": 2, "col": 1, "span_x": 2, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "supply_chain_table", "kind": "table", "label": "Raw Material Supply Chain",
+                             "columns": ["Material", "Stock Level", "Supplier", "Status"], "input": "none"},
+            "grid_position": {"row": 2, "col": 1, "span_x": 2, "span_y": 1},
         },
         {
             "widget_id": "w-fo-4",
             "component_name": "ChartWidget",
             "title": "Machine Uptime Distribution",
-            "props": {
-                "chartType": "donut",
-                "data": [
-                    {"label": "Running", "val": 85},
-                    {"label": "Idle", "val": 10},
-                    {"label": "Maintenance", "val": 5}
-                ]
-            },
-            "grid_position": {"row": 3, "col": 1, "span_x": 1, "span_y": 1}
+            "props": {"chartType": "donut"},
+            "data_binding": {"key": "machine_uptime_series", "kind": "series", "label": "Machine Uptime", "unit": "%", "input": "number"},
+            "grid_position": {"row": 3, "col": 1, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-fo-5",
             "component_name": "ListWidget",
             "title": "Shift Activity Log",
-            "props": {
-                "items": [
-                    {"icon": "⚙️", "text": "Line 2 maintenance completed", "meta": "08:30 AM", "dotColor": "var(--status-ok)"},
-                    {"icon": "📦", "text": "Batch #401 dispatched", "meta": "10:15 AM", "dotColor": "var(--status-ok)"},
-                    {"icon": "⚠️", "text": "Consumable stock below threshold", "meta": "Critical", "dotColor": "var(--status-critical)"}
-                ]
-            },
-            "grid_position": {"row": 3, "col": 2, "span_x": 1, "span_y": 1}
+            "props": {},
+            "data_binding": {"key": "shift_activity_log", "kind": "list", "label": "Shift Activity Log", "input": "text"},
+            "grid_position": {"row": 3, "col": 2, "span_x": 1, "span_y": 1},
         },
         {
             "widget_id": "w-fo-6",
             "component_name": "LedgerToggle",
             "title": "Shift Ledger",
-            "props": {"label": "Finalize Shift Batch", "isArmed": False},
-            "grid_position": {"row": 4, "col": 1, "span_x": 2, "span_y": 1}
-        }
-    ]
+            "props": {"label": "Finalize Shift Batch"},
+            "data_binding": {"key": "shift_ledger", "kind": "action", "label": "Finalize Shift Batch", "input": "none"},
+            "grid_position": {"row": 4, "col": 1, "span_x": 2, "span_y": 1},
+        },
+    ],
 }
 
 

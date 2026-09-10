@@ -4,10 +4,17 @@ import DiwaanSeal from './DiwaanSeal';
 
 export default function OnboardingChat({ session, isThinking, onSendMessage, isMock = false }) {
   const [inputValue, setInputValue] = useState('');
-  const messagesEndRef = useRef(null);
+  // Ref to the scrollable chat-history container (not the page)
+  const chatHistoryRef = useRef(null);
 
+  // Bug fix: scroll within the bounded .chat-history container, never on the page.
+  // scrollIntoView() on the sentinel div scrolls the VIEWPORT, not the chat box.
+  // Use scrollTop on the container instead.
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = chatHistoryRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
   };
 
   useEffect(() => {
@@ -17,10 +24,9 @@ export default function OnboardingChat({ session, isThinking, onSendMessage, isM
   const handleSubmit = (e) => {
     e.preventDefault();
     if (isThinking) return;
-    
+
     if (isMock) {
-      // In mock mode, the payload text doesn't matter, it just advances the script.
-      onSendMessage("Continue (Mocking User Input)");
+      onSendMessage('Continue (Mocking User Input)');
     } else {
       if (!inputValue.trim()) return;
       onSendMessage(inputValue);
@@ -30,7 +36,8 @@ export default function OnboardingChat({ session, isThinking, onSendMessage, isM
 
   return (
     <div className="onboarding-chat">
-      <div className="chat-history">
+      {/* chat-history is the bounded scrollable container */}
+      <div className="chat-history" ref={chatHistoryRef}>
         {session.conversation.map((turn, idx) => (
           <div key={idx} className={`chat-bubble ${turn.role}`}>
             {turn.role === 'assistant' && (
@@ -49,13 +56,12 @@ export default function OnboardingChat({ session, isThinking, onSendMessage, isM
               <DiwaanSeal size="micro" state="generating" />
             </div>
             <div className="message-content">
-              <span className="dot-pulse"></span>
-              <span className="dot-pulse"></span>
-              <span className="dot-pulse"></span>
+              <span className="dot-pulse" />
+              <span className="dot-pulse" />
+              <span className="dot-pulse" />
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       <form className="chat-input-area" onSubmit={handleSubmit}>
@@ -73,7 +79,7 @@ export default function OnboardingChat({ session, isThinking, onSendMessage, isM
               disabled={isThinking}
               autoFocus
             />
-            <button type="submit" disabled={isThinking || !inputValue.trim()}>
+            <button type="submit" className="neumorph-primary" disabled={isThinking || !inputValue.trim()}>
               Send
             </button>
           </>

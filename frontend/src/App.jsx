@@ -6,7 +6,30 @@ import DiwaanSeal from './components/DiwaanSeal';
 import AuthScreen from './components/AuthScreen';
 import SettingsModal from './components/SettingsModal';
 import Toast from './components/Toast';
-import { apiFetch, setOnAuthExpired, clearSession as clientClearSession } from './api/client';
+import { apiFetch, setOnAuthExpired, clearSession as clientClearSession, decodeJwtPayload } from './api/client';
+
+// Local-dev convenience: skip the login screen entirely.
+// Enabled only when VITE_DEV_AUTOLOGIN === 'true' in a local .env — never in production.
+const DEV_AUTOLOGIN = import.meta.env.VITE_DEV_AUTOLOGIN === 'true';
+const DEV_EMAIL = import.meta.env.VITE_DEMO_EMAIL || 'demo@diwaan.local';
+const DEV_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD || 'secret';
+
+async function devAutoLogin() {
+  const form = new URLSearchParams();
+  form.append('username', DEV_EMAIL);
+  form.append('password', DEV_PASSWORD);
+  const res = await apiFetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form,
+  });
+  if (!res.ok) throw new Error('dev auto-login failed');
+  const { access_token } = await res.json();
+  const tenantId = decodeJwtPayload(access_token).tenant_id;
+  sessionStorage.setItem('diwaan_token', access_token);
+  sessionStorage.setItem('diwaan_tenant_id', tenantId);
+  return { token: access_token, tenantId };
+}
 
 // Lazy load the heavy Diwaan module
 const LandingPage = lazy(() => import('./LandingPage'));
@@ -77,8 +100,17 @@ function App() {
   // ─── Boot: check persisted session ──────────────────────────────────────────
   useEffect(() => {
     async function boot() {
-      const token = sessionStorage.getItem('diwaan_token');
-      const tid = sessionStorage.getItem('diwaan_tenant_id');
+      let token = sessionStorage.getItem('diwaan_token');
+      let tid = sessionStorage.getItem('diwaan_tenant_id');
+
+      if ((!token || !tid) && DEV_AUTOLOGIN) {
+        try {
+          ({ token, tenantId: tid } = await devAutoLogin());
+        } catch {
+          setView('auth');
+          return;
+        }
+      }
 
       if (!token || !tid) {
         setView('auth');

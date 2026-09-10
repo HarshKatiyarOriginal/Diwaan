@@ -41,9 +41,11 @@ services:
       - key: GEMINI_API_KEY
         sync: false # Requires manual entry in Render dashboard
       - key: GEMINI_MODEL
-        value: "gemini-1.5-flash"
+        value: "gemini-2.0-flash"
       - key: CORS_ORIGINS
-        value: "*"
+        # TODO: Set this to your deployed frontend origin, e.g. https://diwaan.onrender.com
+        # Using "*" only during local dev — tighten before production
+        value: "http://localhost:5173,http://localhost:3000"
 
   # The Celery Worker
   - type: worker
@@ -79,4 +81,4 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: "gemini-1.5-flash"
+        value: "gemini-2.0-flash"

@@ -79,3 +79,21 @@ async def test_user(async_client):
     res = await async_client.post("/api/auth/login", data={"username": email, "password": "password123"})
     token = res.json()["access_token"]
     return {"email": email, "access_token": token}
+
+
+@pytest_asyncio.fixture
+def get_token():
+    """Register + login a user, return the access token."""
+    async def _get(client, email=None, tenant_name="Test Tenant"):
+        email = email or f"u_{uuid.uuid4()}@example.com"
+        await client.post("/api/auth/register", json={
+            "email": email,
+            "password": "password123",
+            "tenant_name": tenant_name,
+        })
+        res = await client.post(
+            "/api/auth/login",
+            data={"username": email, "password": "password123"},
+        )
+        return res.json()["access_token"]
+    return _get

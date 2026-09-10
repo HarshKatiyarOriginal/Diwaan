@@ -238,6 +238,13 @@
     animation: shimmer 5s infinite linear;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-grid > div {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
 
 .prompt-card {
   width: 100%;
@@ -386,6 +393,27 @@
   gap: 24px;
 }
 
+@keyframes widget-reveal {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.dashboard-grid > div {
+  animation: widget-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.dashboard-grid > div:nth-child(1) { animation-delay: 0.06s; }
+.dashboard-grid > div:nth-child(2) { animation-delay: 0.12s; }
+.dashboard-grid > div:nth-child(3) { animation-delay: 0.18s; }
+.dashboard-grid > div:nth-child(4) { animation-delay: 0.24s; }
+.dashboard-grid > div:nth-child(5) { animation-delay: 0.30s; }
+.dashboard-grid > div:nth-child(6) { animation-delay: 0.36s; }
+.dashboard-grid > div:nth-child(7) { animation-delay: 0.42s; }
+.dashboard-grid > div:nth-child(8) { animation-delay: 0.48s; }
+.dashboard-grid > div:nth-child(9) { animation-delay: 0.54s; }
+.dashboard-grid > div:nth-child(10) { animation-delay: 0.60s; }
+.dashboard-grid > div:nth-child(n+11) { animation-delay: 0.66s; }
+
+
 /* Component Styles */
 .component-wrapper {
   padding: 24px;
@@ -478,3 +506,11 @@
   letter-spacing: 0.05em;
   font-weight: 500;
 }
+
+@keyframes mote-float {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(20px, -15px); }
+  50% { transform: translate(-10px, -30px); }
+  75% { transform: translate(-25px, 10px); }
+}
+

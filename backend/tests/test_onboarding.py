@@ -70,7 +70,12 @@ async def test_onboarding_happy_path(async_client: AsyncClient, db_session: Asyn
                 business_summary="Cycle factory",
                 customized_parameters={"primary_color": "#112233"},
                 active_widgets=[
-                    Widget(widget_id="w-1", title="Revenue", component_name="MetricCard", grid_position={"col":1, "span_x":2, "row":1, "span_y":1}, props={"value": "1M"})
+                    Widget(
+                        widget_id="w-1", title="Revenue", component_name="MetricCard",
+                        grid_position={"col": 1, "span_x": 2, "row": 1, "span_y": 1},
+                        props={"chartType": "bar"},
+                        data_binding={"key": "monthly_revenue", "kind": "metric", "label": "Monthly Revenue", "unit": "₹"},
+                    )
                 ]
             )
     
@@ -130,16 +135,17 @@ async def test_onboarding_truncation(async_client: AsyncClient, db_session: Asyn
     response = await async_client.post("/api/onboarding/sessions", headers=headers)
     session_id = response.json()["session_id"]
     
-    # Max questions is 15. The start_session uses 1. We must respond 14 times.
-    for _ in range(14):
+    # ONBOARDING_MAX_QUESTIONS is 18. start_session uses 1, so 17 responds
+    # stay in-progress and the 18th forces generation.
+    for _ in range(17):
         res = await async_client.post(
             f"/api/onboarding/sessions/{session_id}/respond",
             json={"answer": "stuff"},
             headers=headers
         )
         assert res.json()["status"] == "in_progress"
-        
-    # On the 14th respond (15th question attempted), it should force generation.
+
+    # On the next respond (18th question attempted), it should force generation.
     async def force_generate_side_effect(*args, **kwargs):
         schema = kwargs.get("schema")
         if schema == ArchetypeClassification:

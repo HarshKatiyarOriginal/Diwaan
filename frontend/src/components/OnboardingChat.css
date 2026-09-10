@@ -5,11 +5,13 @@
   max-width: 800px;
   height: 500px;
   margin: 0 auto;
-  background: var(--vault-sapphire);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--glass-surface-base);
+  backdrop-filter: var(--blur-medium);
+  -webkit-backdrop-filter: var(--blur-medium);
+  border: var(--glass-border-subtle);
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-elevation-high);
 }
 
 .chat-history {

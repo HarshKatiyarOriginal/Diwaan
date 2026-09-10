@@ -315,17 +315,38 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
               loading={isActive ? 'eager' : 'lazy'}
               style={{
                 position: 'absolute', inset: 0, width: '100%', height: '100%',
-                objectFit: 'cover', opacity: isActive ? 1 : 0,
+                objectFit: 'cover', opacity: isActive ? 0.35 : 0,
                 transition: 'opacity 0.6s ease-in-out', pointerEvents: 'none',
               }}
             />
           );
         })}
+        {/* Aurora gradient mesh overlay */}
+        <div className="aurora-bg" style={{ position: 'absolute', inset: 0 }} />
         <div className="background-scrim" style={{
           position: 'absolute', inset: 0,
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.75))',
+          background: 'linear-gradient(180deg, rgba(10,12,20,0.4), rgba(10,12,20,0.8))',
           pointerEvents: 'none',
         }} />
+        {/* Particle motes — 40 ambient floaters */}
+        {Array.from({ length: 40 }, (_, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: `${(i * 7.3 + 5) % 96}%`,
+              top: `${(i * 11.7 + 8) % 92}%`,
+              width: `${2 + (i % 3)}px`,
+              height: `${2 + (i % 3)}px`,
+              borderRadius: '50%',
+              background: 'var(--brushed-gold)',
+              opacity: 0.08 + (i % 5) * 0.04,
+              animation: `mote-float ${14 + (i % 8) * 3}s ease-in-out infinite`,
+              animationDelay: `${(i * 0.7) % 12}s`,
+              pointerEvents: 'none',
+            }}
+          />
+        ))}
       </div>
 
       {/* Nav */}
@@ -527,7 +548,7 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
               if (!theme || !validateTheme(theme)) return null;
               return (
                 <div className={`theme-root motif-${theme.backgroundMotif} accent-${theme.accentEffect}`} style={themeRootStyle(theme)}>
-                  <BlueprintRenderer blueprint={activeBlueprint} theme={theme} />
+                  <BlueprintRenderer blueprint={activeBlueprint} theme={theme} tenantId={tenantId} />
                 </div>
               );
             })()}

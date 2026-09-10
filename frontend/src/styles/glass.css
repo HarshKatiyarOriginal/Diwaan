@@ -1,0 +1,235 @@
+/**
+ * glass.css — Diwaan shared glass surface and interactive element classes.
+ * Import in index.css after tokens.css.
+ *
+ * All classes use CSS custom properties defined in tokens.css so theme
+ * overrides work automatically.
+ */
+
+/* ── Glass card base ─────────────────────────────────────────────────────── */
+.glass-card-base {
+  background: var(--glass-surface-base);
+  backdrop-filter: var(--blur-medium);
+  -webkit-backdrop-filter: var(--blur-medium);
+  border: var(--glass-border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--shadow-elevation-medium);
+  transition: box-shadow var(--duration-smooth) var(--ease-smooth),
+              border-color var(--duration-smooth) var(--ease-smooth);
+}
+
+.glass-card-base:hover {
+  box-shadow: var(--shadow-elevation-high);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Modal / overlay surfaces ────────────────────────────────────────────── */
+.glass-modal {
+  background: var(--glass-surface-elevated);
+  backdrop-filter: var(--blur-deep);
+  -webkit-backdrop-filter: var(--blur-deep);
+  border: var(--glass-border-gold);
+  border-radius: 20px;
+  box-shadow: var(--shadow-elevation-high), var(--shadow-gold-glow);
+}
+
+/* ── Neumorphic primary action button ────────────────────────────────────── */
+.neumorph-primary {
+  background: var(--brushed-gold, #d4a24c);
+  color: var(--vault-sapphire, #0a0c14);
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 12px 24px;
+  box-shadow: var(--neumorph-primary-raised);
+  transition:
+    box-shadow var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth),
+    opacity var(--duration-fast) var(--ease-smooth);
+  position: relative;
+  overflow: hidden;
+  /* Press ripple target */
+}
+
+.neumorph-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--rx, 50%) var(--ry, 50%), rgba(255,255,255,0.25) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.neumorph-primary:hover {
+  box-shadow: var(--neumorph-primary-hover);
+  transform: translateY(-1px);
+}
+
+.neumorph-primary:hover::after {
+  opacity: 1;
+}
+
+.neumorph-primary:active {
+  box-shadow: var(--neumorph-primary-pressed);
+  transform: translateY(0);
+}
+
+.neumorph-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--neumorph-primary-raised);
+}
+
+/* ── Shimmer skeleton ─────────────────────────────────────────────────────── */
+@keyframes shimmer-sweep {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.shimmer-card {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer-sweep 1.5s infinite linear;
+  border-radius: 16px;
+}
+
+.shimmer-line {
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer-sweep 1.5s infinite linear;
+}
+
+.shimmer-line--title {
+  height: 12px;
+  width: 60%;
+  margin-bottom: 16px;
+}
+
+.shimmer-line--value {
+  height: 28px;
+  width: 45%;
+  margin-bottom: 12px;
+}
+
+.shimmer-line--sub {
+  height: 10px;
+  width: 35%;
+}
+
+/* ── Magnetic button (slight attract on hover) ───────────────────────────── */
+.magnetic-btn {
+  transition: transform var(--duration-fast) var(--ease-vault);
+  will-change: transform;
+}
+
+/* ── Aurora gradient mesh background ─────────────────────────────────────── */
+.aurora-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.aurora-bg::before,
+.aurora-bg::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: aurora-drift 30s ease-in-out infinite alternate;
+}
+
+.aurora-bg::before {
+  width: 60vw;
+  height: 60vw;
+  top: -20%;
+  left: -10%;
+  background: radial-gradient(
+    circle,
+    rgba(212, 162, 76, 0.12) 0%,
+    rgba(30, 58, 95, 0.08) 50%,
+    transparent 70%
+  );
+}
+
+.aurora-bg::after {
+  width: 50vw;
+  height: 50vw;
+  bottom: -15%;
+  right: -10%;
+  background: radial-gradient(
+    circle,
+    rgba(124, 58, 237, 0.08) 0%,
+    rgba(30, 58, 95, 0.06) 50%,
+    transparent 70%
+  );
+  animation-delay: -15s;
+  animation-direction: alternate-reverse;
+}
+
+@keyframes aurora-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(3%, 2%) scale(1.05); }
+  66% { transform: translate(-2%, 3%) scale(0.97); }
+  100% { transform: translate(2%, -2%) scale(1.03); }
+}
+
+/* ── Accent morphism (aurora-glass sheen) ────────────────────────────────── */
+/* Apply .accent-morph to a positioned container with overflow:hidden */
+.accent-morph {
+  position: relative;
+  overflow: hidden;
+}
+
+.accent-morph::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(212, 162, 76, 0.06) 60deg,
+    transparent 120deg
+  );
+  animation: morph-rotate 8s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.accent-morph:hover::before {
+  opacity: 2; /* 0.06 × 2 = 0.12 effective on hover via filter */
+  filter: brightness(2);
+}
+
+@keyframes morph-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Reduced motion: disable all animations except functional ones */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-bg::before,
+  .aurora-bg::after,
+  .accent-morph::before,
+  .shimmer-card,
+  .shimmer-line {
+    animation: none;
+  }
+}

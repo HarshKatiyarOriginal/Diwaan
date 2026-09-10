@@ -6,7 +6,7 @@ from uuid import UUID
 from ..db.session import get_db
 from ..models.user import User
 from ..models.diwaan import Archetype, TenantDashboard
-from ..schemas.blueprint import Blueprint, OnboardingRequest, ArchetypeClassification
+from ..schemas.blueprint import Blueprint, OnboardingRequest, ArchetypeClassification, sanitize_stored_widgets
 from ..api.deps import get_current_user
 from ..core.exceptions import APIError
 from ..services.llm import generate_structured_output
@@ -110,13 +110,14 @@ async def get_dashboard(
     if not dashboard:
         raise APIError("Dashboard not found", status_code=404)
         
-    # Reconstruct Blueprint from DB
+    # Reconstruct Blueprint from DB. Sanitize persisted widget props so a
+    # dashboard saved before the props-validator existed still opens.
     return Blueprint(
         archetype=dashboard.archetype_id,
-        visual_theme=dashboard.customized_parameters.get("visual_theme"),
+        visual_theme=(dashboard.customized_parameters or {}).get("visual_theme"),
         business_summary=dashboard.business_summary,
         customized_parameters=dashboard.customized_parameters,
-        active_widgets=dashboard.active_widgets,
+        active_widgets=sanitize_stored_widgets(dashboard.active_widgets),
         generated_at=dashboard.generated_at,
         version=dashboard.version
     )

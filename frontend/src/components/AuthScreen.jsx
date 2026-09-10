@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiFetch, decodeJwtPayload } from '../api/client';
+import DiwaanSeal from './DiwaanSeal';
 
 /**
  * AuthScreen — Real login / register UI.
@@ -20,7 +21,6 @@ export default function AuthScreen({ onAuthSuccess }) {
 
     try {
       if (mode === 'register') {
-        // Step 1: Register (creates Tenant + User)
         const regRes = await apiFetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -28,11 +28,10 @@ export default function AuthScreen({ onAuthSuccess }) {
         });
         if (!regRes.ok) {
           const body = await regRes.json().catch(() => ({}));
-          throw new Error(body.detail || 'Registration failed');
+          throw new Error(body.error || body.detail || 'Registration failed');
         }
       }
 
-      // Step 2: Login (same for both modes)
       const formData = new URLSearchParams();
       formData.append('username', email);
       formData.append('password', password);
@@ -45,16 +44,13 @@ export default function AuthScreen({ onAuthSuccess }) {
 
       if (!loginRes.ok) {
         const body = await loginRes.json().catch(() => ({}));
-        throw new Error(body.detail || 'Incorrect email or password');
+        throw new Error(body.error || body.detail || 'Incorrect email or password');
       }
 
       const { access_token } = await loginRes.json();
-
-      // Safely decode tenant_id from base64url JWT payload
       const payload = decodeJwtPayload(access_token);
       const tenantId = payload.tenant_id;
 
-      // Persist for this browser session only
       sessionStorage.setItem('diwaan_token', access_token);
       sessionStorage.setItem('diwaan_tenant_id', tenantId);
 
@@ -75,41 +71,53 @@ export default function AuthScreen({ onAuthSuccess }) {
       justifyContent: 'center',
       fontFamily: 'var(--font-body)',
       padding: '24px',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '420px',
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: '16px',
-        padding: '40px 36px',
-      }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+      {/* Aurora gradient mesh background */}
+      <div className="aurora-bg" />
+
+      {/* Auth card */}
+      <div
+        className="glass-modal accent-morph"
+        style={{
+          width: '100%',
+          maxWidth: '440px',
+          padding: '40px 36px',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        {/* 3D Seal */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+          <DiwaanSeal size="large" state={loading ? 'generating' : 'static'} />
+        </div>
+
+        {/* Wordmark */}
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{
             fontFamily: 'var(--font-display)',
             fontSize: '2rem',
             fontWeight: 800,
             letterSpacing: '0.1em',
             color: 'var(--brushed-gold)',
-            textShadow: '0 0 20px rgba(212,162,76,0.4)',
+            textShadow: '0 0 24px rgba(212,162,76,0.45)',
           }}>DIWAAN</div>
           <div style={{
             fontFamily: 'var(--font-mono)',
-            fontSize: '0.7rem',
+            fontSize: '0.68rem',
             color: 'var(--muted-slate)',
             textTransform: 'uppercase',
-            letterSpacing: '0.1em',
+            letterSpacing: '0.12em',
             marginTop: '4px',
           }}>AI Business Intelligence</div>
         </div>
 
-        {/* Mode Toggle */}
+        {/* Mode toggle */}
         <div style={{
           display: 'flex',
-          gap: '0',
-          marginBottom: '28px',
-          border: '1px solid rgba(255,255,255,0.08)',
+          marginBottom: '24px',
+          border: 'var(--glass-border-subtle)',
           borderRadius: '8px',
           overflow: 'hidden',
         }}>
@@ -120,7 +128,7 @@ export default function AuthScreen({ onAuthSuccess }) {
               style={{
                 flex: 1,
                 padding: '10px',
-                background: mode === m ? 'rgba(212,162,76,0.12)' : 'transparent',
+                background: mode === m ? 'rgba(212,162,76,0.14)' : 'transparent',
                 border: 'none',
                 color: mode === m ? 'var(--brushed-gold)' : 'var(--muted-slate)',
                 fontFamily: 'var(--font-mono)',
@@ -177,8 +185,8 @@ export default function AuthScreen({ onAuthSuccess }) {
 
           {error && (
             <div style={{
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
+              background: 'rgba(239,68,68,0.10)',
+              border: '1px solid rgba(239,68,68,0.30)',
               color: '#fca5a5',
               padding: '10px 14px',
               borderRadius: '8px',
@@ -191,20 +199,8 @@ export default function AuthScreen({ onAuthSuccess }) {
           <button
             type="submit"
             disabled={loading}
-            style={{
-              marginTop: '8px',
-              padding: '14px',
-              background: loading ? 'rgba(212,162,76,0.4)' : 'var(--brushed-gold)',
-              color: 'var(--vault-sapphire)',
-              border: 'none',
-              borderRadius: '8px',
-              fontFamily: 'var(--font-body)',
-              fontWeight: 700,
-              fontSize: '0.95rem',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              letterSpacing: '0.03em',
-            }}
+            className="neumorph-primary"
+            style={{ marginTop: '8px', width: '100%', padding: '14px', fontSize: '0.95rem', letterSpacing: '0.03em' }}
           >
             {loading
               ? (mode === 'register' ? 'Creating account…' : 'Signing in…')
@@ -217,7 +213,7 @@ export default function AuthScreen({ onAuthSuccess }) {
           marginTop: '24px',
           textAlign: 'center',
           fontFamily: 'var(--font-mono)',
-          fontSize: '0.65rem',
+          fontSize: '0.64rem',
           color: 'var(--muted-slate)',
           lineHeight: 1.6,
         }}>
@@ -241,7 +237,7 @@ const labelStyle = {
 const inputStyle = {
   width: '100%',
   background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: '8px',
   padding: '11px 14px',
   color: 'var(--glass-white)',

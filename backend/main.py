@@ -4,7 +4,8 @@ from .models.specshield import AuditSession, Document, ComparisonResult
 from .models.diwaan import Archetype, TenantDashboard
 from .models.onboarding import OnboardingSession
 from backend.models import Base
-from backend.api import auth, diwaan, specshield, tasks, onboarding
+from backend.db.session import engine
+from backend.api import auth, diwaan, specshield, tasks, onboarding, dashboard_data
 from backend.core.config import settings
 from backend.core.exceptions import APIError, api_error_handler, global_exception_handler
 from backend.core.logging import logger
@@ -32,7 +33,15 @@ app.include_router(diwaan.router)
 app.include_router(specshield.router)
 app.include_router(tasks.router)
 app.include_router(onboarding.router)
+app.include_router(dashboard_data.router)
 
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up backend application")
+    # Stopgap until Alembic migration versions exist: create any missing
+    # tables so a fresh database (SQLite dev, or a new Postgres) is usable.
+    # NOTE: create_all does NOT ALTER existing tables — a real migration is
+    # still required to add columns to an already-provisioned database.
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Schema ensured (create_all)")
