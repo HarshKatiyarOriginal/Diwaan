@@ -37,7 +37,7 @@ class OnboardingSession(Base):
 
     # foreign key to the generated dashboard
     resulting_dashboard_id = Column(
-        UUIDType, ForeignKey("tenant_dashboards.tenant_id"), nullable=True
+        UUIDType, ForeignKey("tenant_dashboards.id"), nullable=True
     )
 
     created_at = Column(

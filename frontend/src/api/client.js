@@ -13,6 +13,7 @@ export function setOnAuthExpired(callback) {
 export function clearSession() {
   sessionStorage.removeItem('diwaan_token');
   sessionStorage.removeItem('diwaan_tenant_id');
+  sessionStorage.removeItem('diwaan_active_dashboard_id');
 }
 
 /**

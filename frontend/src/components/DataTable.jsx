@@ -23,7 +23,7 @@ export default function DataTable({
     // Data-layer props
     binding,
     storedEntry,
-    tenantId,
+    dashboardId,
     onDataUpdate,
 }) {
     const columns = binding?.columns?.length > 0 ? binding.columns : (legacyColumns || []);
@@ -36,11 +36,11 @@ export default function DataTable({
     const [saveError, setSaveError] = useState(null);
 
     async function persistRows(updatedRows) {
-        if (!tenantId || !binding?.key) return;
+        if (!dashboardId || !binding?.key) return;
         setSaving(true);
         setSaveError(null);
         try {
-            const res = await apiFetch(`/api/dashboards/${tenantId}/data/${binding.key}`, {
+            const res = await apiFetch(`/api/dashboards/${dashboardId}/data/${binding.key}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value: updatedRows }),
@@ -72,7 +72,7 @@ export default function DataTable({
     }
 
     const isEmpty = rows.length === 0;
-    const canEdit = !!(binding && tenantId);
+    const canEdit = !!(binding && dashboardId);
 
     return (
         <div className="glass-card component-wrapper" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

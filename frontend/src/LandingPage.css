@@ -3,7 +3,6 @@
   background: var(--vault-sapphire);
   color: var(--glass-white);
   position: relative;
-  overflow-x: hidden;
   font-family: var(--font-body);
 }
 

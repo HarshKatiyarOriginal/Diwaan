@@ -12,9 +12,13 @@ async def test_set_metric_twice(async_client: AsyncClient, get_token, db_session
     token = await get_token(async_client, "owner@example.com", "Test Tenant")
     headers = {"Authorization": f"Bearer {token}"}
     
-    # We need a dashboard with a binding catalog first
+    res = await async_client.get("/api/auth/me", headers=headers)
+    tenant_id = res.json()["tenant_id"]
+    dashboard_id = uuid.uuid4()
     dash = TenantDashboard(
-        tenant_id="00000000-0000-0000-0000-000000000000", # Will be overridden
+        id=dashboard_id,
+        tenant_id=uuid.UUID(tenant_id),
+        name="Test",
         archetype_id="shopkeeper",
         business_summary="A shop",
         customized_parameters={
@@ -22,16 +26,12 @@ async def test_set_metric_twice(async_client: AsyncClient, get_token, db_session
         },
         active_widgets=[]
     )
-    # Actually, we need the real tenant_id
-    res = await async_client.get("/api/auth/me", headers=headers)
-    tenant_id = res.json()["tenant_id"]
-    dash.tenant_id = uuid.UUID(tenant_id)
     db_session.add(dash)
     await db_session.commit()
 
     # PUT first value
     res1 = await async_client.put(
-        f"/api/dashboards/{tenant_id}/data/daily_rev",
+        f"/api/dashboards/{dashboard_id}/data/daily_rev",
         headers=headers,
         json={"value": 150.5}
     )
@@ -39,14 +39,14 @@ async def test_set_metric_twice(async_client: AsyncClient, get_token, db_session
 
     # PUT second value
     res2 = await async_client.put(
-        f"/api/dashboards/{tenant_id}/data/daily_rev",
+        f"/api/dashboards/{dashboard_id}/data/daily_rev",
         headers=headers,
         json={"value": 200.0}
     )
     assert res2.status_code == 200
 
     # Check GET data
-    res_get = await async_client.get(f"/api/dashboards/{tenant_id}/data", headers=headers)
+    res_get = await async_client.get(f"/api/dashboards/{dashboard_id}/data", headers=headers)
     assert res_get.status_code == 200
     data = res_get.json()["data"]
     assert "daily_rev" in data
@@ -55,7 +55,7 @@ async def test_set_metric_twice(async_client: AsyncClient, get_token, db_session
     assert data["daily_rev"]["last_two"] == [200.0, 150.5]
 
 
-async def test_cross_tenant_rejection(async_client: AsyncClient, get_token):
+async def test_cross_tenant_rejection(async_client: AsyncClient, get_token, db_session):
     token1 = await get_token(async_client, "t1@example.com", "T1")
     headers1 = {"Authorization": f"Bearer {token1}"}
     
@@ -65,8 +65,21 @@ async def test_cross_tenant_rejection(async_client: AsyncClient, get_token):
     res1 = await async_client.get("/api/auth/me", headers=headers1)
     tenant1_id = res1.json()["tenant_id"]
 
-    # Try to access tenant1's data with tenant2's token
-    res = await async_client.get(f"/api/dashboards/{tenant1_id}/data", headers=headers2)
+    dashboard_id = uuid.uuid4()
+    dash = TenantDashboard(
+        id=dashboard_id,
+        tenant_id=uuid.UUID(tenant1_id),
+        name="Test",
+        archetype_id="shopkeeper",
+        business_summary="A shop",
+        customized_parameters={},
+        active_widgets=[]
+    )
+    db_session.add(dash)
+    await db_session.commit()
+
+    # Try to access tenant1's dashboard with tenant2's token
+    res = await async_client.get(f"/api/dashboards/{dashboard_id}/data", headers=headers2)
     assert res.status_code == 403
     assert "denied" in res.json()["error"].lower()
 
@@ -77,9 +90,12 @@ async def test_binding_violation(async_client: AsyncClient, get_token, db_sessio
     
     res = await async_client.get("/api/auth/me", headers=headers)
     tenant_id = res.json()["tenant_id"]
+    dashboard_id = uuid.uuid4()
 
     dash = TenantDashboard(
+        id=dashboard_id,
         tenant_id=uuid.UUID(tenant_id),
+        name="Test",
         archetype_id="shopkeeper",
         business_summary="A shop",
         customized_parameters={
@@ -92,7 +108,7 @@ async def test_binding_violation(async_client: AsyncClient, get_token, db_sessio
 
     # PUT invalid key
     res_put = await async_client.put(
-        f"/api/dashboards/{tenant_id}/data/invalid_key",
+        f"/api/dashboards/{dashboard_id}/data/invalid_key",
         headers=headers,
         json={"value": 10}
     )
@@ -106,9 +122,22 @@ async def test_ledger_event_fires(async_client: AsyncClient, get_token, db_sessi
     
     res = await async_client.get("/api/auth/me", headers=headers)
     tenant_id = res.json()["tenant_id"]
+    dashboard_id = uuid.uuid4()
+    
+    dash = TenantDashboard(
+        id=dashboard_id,
+        tenant_id=uuid.UUID(tenant_id),
+        name="Test",
+        archetype_id="shopkeeper",
+        business_summary="A shop",
+        customized_parameters={},
+        active_widgets=[]
+    )
+    db_session.add(dash)
+    await db_session.commit()
 
     res_post = await async_client.post(
-        f"/api/dashboards/{tenant_id}/actions/my_action",
+        f"/api/dashboards/{dashboard_id}/actions/my_action",
         headers=headers,
         json={"label": "Did a thing"}
     )
@@ -117,7 +146,7 @@ async def test_ledger_event_fires(async_client: AsyncClient, get_token, db_sessi
     assert ev["label"] == "Did a thing"
     assert ev["key"] == "my_action"
 
-    res_get = await async_client.get(f"/api/dashboards/{tenant_id}/actions/my_action", headers=headers)
+    res_get = await async_client.get(f"/api/dashboards/{dashboard_id}/actions/my_action", headers=headers)
     assert res_get.status_code == 200
     evs = res_get.json()
     assert len(evs) == 1

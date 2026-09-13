@@ -57,7 +57,7 @@ async def test_tenant_isolation_dashboard(async_client: AsyncClient):
         import uuid
         random_tenant_id = str(uuid.uuid4())
         
-        res_403 = await async_client.get(f"/api/dashboards/{random_tenant_id}", 
+        res_404 = await async_client.get(f"/api/dashboards/{random_tenant_id}", 
             headers={"Authorization": f"Bearer {token_a}"}
         )
-        assert res_403.status_code == 403
+        assert res_404.status_code == 404

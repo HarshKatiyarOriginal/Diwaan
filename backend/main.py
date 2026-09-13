@@ -38,6 +38,23 @@ app.include_router(dashboard_data.router)
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up backend application")
+    # Run alembic upgrade head. Resolve paths from this file's location
+    # (not CWD) — uvicorn may be launched from the repo root or from
+    # backend/, and alembic.ini's `script_location = alembic` is itself
+    # resolved relative to CWD, not to the ini file's own directory.
+    def run_migrations():
+        import os
+        from alembic.config import Config
+        from alembic import command
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+        command.upgrade(alembic_cfg, "head")
+
+    import asyncio
+    await asyncio.to_thread(run_migrations)
+    logger.info("Alembic migrations applied")
+
     # Stopgap until Alembic migration versions exist: create any missing
     # tables so a fresh database (SQLite dev, or a new Postgres) is usable.
     # NOTE: create_all does NOT ALTER existing tables — a real migration is

@@ -1,7 +1,7 @@
 """
 Widget data persistence models — Part II of the Diwaan data layer.
 
-WidgetValue    — current value for any widget keyed by (tenant_id, key)
+WidgetValue    — current value for any widget keyed by (dashboard_id, key)
 WidgetSeriesPoint — time-series points for metric/series widgets
 LedgerEvent    — immutable log of LedgerToggle actions
 """
@@ -14,8 +14,8 @@ from ..db.session import Base
 
 class WidgetValue(Base):
     """
-    Stores the current value of any dashboard widget for a tenant.
-    Primary key is (tenant_id, key) — key is the DataBinding.key slug.
+    Stores the current value of any dashboard widget for a dashboard.
+    Primary key is (dashboard_id, key) — key is the DataBinding.key slug.
     value_json shape depends on DataBinding.kind:
       metric/series → {"value": float}
       table         → {"rows": [[cell, ...], ...]}
@@ -24,8 +24,9 @@ class WidgetValue(Base):
     """
     __tablename__ = "widget_values"
 
-    tenant_id = Column(UUIDType, ForeignKey("tenants.id"), primary_key=True, nullable=False)
+    dashboard_id = Column(UUIDType, ForeignKey("tenant_dashboards.id", ondelete="CASCADE"), primary_key=True, nullable=False)
     key = Column(String, primary_key=True, nullable=False)
+    tenant_id = Column(UUIDType, ForeignKey("tenants.id"), nullable=False, index=True)
     value_json = Column(JSONType, nullable=False, default=dict)
     updated_at = Column(
         DateTime(timezone=True),
@@ -43,13 +44,14 @@ class WidgetSeriesPoint(Base):
     __tablename__ = "widget_series_points"
 
     id = Column(UUIDType, primary_key=True, default=uuid.uuid4)
+    dashboard_id = Column(UUIDType, ForeignKey("tenant_dashboards.id", ondelete="CASCADE"), nullable=False, index=True)
     tenant_id = Column(UUIDType, ForeignKey("tenants.id"), nullable=False)
     key = Column(String, nullable=False)
     ts = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     value = Column(Float, nullable=False)
 
     __table_args__ = (
-        Index("ix_series_tenant_key_ts", "tenant_id", "key", "ts"),
+        Index("ix_series_dashboard_key_ts", "dashboard_id", "key", "ts"),
     )
 
 
@@ -61,6 +63,7 @@ class LedgerEvent(Base):
     __tablename__ = "ledger_events"
 
     id = Column(UUIDType, primary_key=True, default=uuid.uuid4)
+    dashboard_id = Column(UUIDType, ForeignKey("tenant_dashboards.id", ondelete="CASCADE"), nullable=False, index=True)
     tenant_id = Column(UUIDType, ForeignKey("tenants.id"), nullable=False)
     key = Column(String, nullable=False)    # DataBinding.key of the LedgerToggle
     label = Column(String, nullable=False)  # Human-readable action label

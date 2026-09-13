@@ -95,13 +95,14 @@ Shopkeeper: sku_count, supplier_count, pos_system, credit_terms, peak_hours
 Factory owner: production_capacity, shift_count, machine_count, quality_standard, raw_material_lead_time
 
 ## Questioning rules
-1. Ask exactly ONE question per turn. No compound questions.
-2. Every question must be answerable with a concrete fact (a number, name, yes/no, specific choice).
-3. NEVER ask something already in extracted_facts or already covered.
-4. Prioritise questions that unblock the most widgets. Sequence: type → scale → revenue model → inputs/outputs → costs → customers → compliance → bottleneck → drill bottleneck 2+ turns.
-5. After the bottleneck is named, drill it for 2 consecutive turns (why it's hard, what a good day vs bad day looks like).
-6. When all core dimensions are covered/n/a AND you have ≥6 catalog entries across ≥3 kinds, do ONE gap-check turn: reflect back what you know, name any gaps, ask if anything important was missed.
-7. Only after the gap-check, set next_action to "ready_to_generate".
+1. Early on, get the name the owner calls this business.
+2. Ask exactly ONE question per turn. No compound questions.
+3. Every question must be answerable with a concrete fact (a number, name, yes/no, specific choice).
+4. NEVER ask something already in extracted_facts or already covered.
+5. Prioritise questions that unblock the most widgets. Sequence: type → scale → revenue model → inputs/outputs → costs → customers → compliance → bottleneck → drill bottleneck 2+ turns.
+6. After the bottleneck is named, drill it for 2 consecutive turns (why it's hard, what a good day vs bad day looks like).
+7. When all core dimensions are covered/n/a AND you have ≥6 catalog entries across ≥3 kinds, do ONE gap-check turn: reflect back what you know, name any gaps, ask if anything important was missed.
+8. Only after the gap-check, set next_action to "ready_to_generate".
 
 ## DataBinding catalog
 For every concrete fact the user reveals, add one or more DataBinding entries to catalog_additions:
@@ -418,12 +419,7 @@ Base template for reference (use as grid/layout guide only): {json.dumps(archety
             from ..schemas.blueprint import ARCHETYPE_THEME_FALLBACKS
             blueprint.visual_theme = ARCHETYPE_THEME_FALLBACKS.get(archetype_id)
 
-    # 4. Upsert dashboard
-    dash_res = await db.execute(
-        select(TenantDashboard).where(TenantDashboard.tenant_id == current_user.tenant_id)
-    )
-    existing_dashboard = dash_res.scalar_one_or_none()
-
+    # 4. Create new dashboard
     params = dict(blueprint.customized_parameters)
     if blueprint.visual_theme:
         params["visual_theme"] = blueprint.visual_theme
@@ -431,38 +427,38 @@ Base template for reference (use as grid/layout guide only): {json.dumps(archety
     params["binding_catalog"] = session.binding_catalog
 
     widget_dicts = [w.model_dump() for w in blueprint.active_widgets]
-
-    if existing_dashboard:
-        existing_dashboard.archetype_id = blueprint.archetype
-        existing_dashboard.business_summary = blueprint.business_summary
-        existing_dashboard.customized_parameters = params
-        existing_dashboard.active_widgets = widget_dicts
-        existing_dashboard.generated_at = blueprint.generated_at
-        existing_dashboard.version = blueprint.version
-        dash = existing_dashboard
-    else:
-        dash = TenantDashboard(
-            tenant_id=current_user.tenant_id,
-            archetype_id=blueprint.archetype,
-            business_summary=blueprint.business_summary,
-            customized_parameters=params,
-            active_widgets=widget_dicts,
-            generated_at=blueprint.generated_at,
-            version=blueprint.version,
-        )
-        db.add(dash)
+    
+    # Extract business name from facts or fallback
+    b_name = session.collected_data.get("business_name")
+    if not b_name:
+        b_name = blueprint.business_summary[:60] if blueprint.business_summary else "My Business"
+        
+    import uuid
+    dash = TenantDashboard(
+        id=uuid.uuid4(),
+        tenant_id=current_user.tenant_id,
+        name=b_name,
+        archetype_id=blueprint.archetype,
+        business_summary=blueprint.business_summary,
+        customized_parameters=params,
+        active_widgets=widget_dicts,
+        generated_at=blueprint.generated_at,
+        version=blueprint.version,
+    )
+    db.add(dash)
 
     await db.commit()
     await db.refresh(dash)
 
     session.status = "complete"
-    session.resulting_dashboard_id = dash.tenant_id
+    session.resulting_dashboard_id = dash.id
     await db.commit()
 
     return RespondResponse(
         session_id=session.id,
         status="complete",
         blueprint=blueprint,
+        dashboard_id=dash.id,
     )
 
 
@@ -493,7 +489,7 @@ async def get_session(
     if session.status == "complete" and session.resulting_dashboard_id:
         dash_res = await db.execute(
             select(TenantDashboard).where(
-                TenantDashboard.tenant_id == session.resulting_dashboard_id
+                TenantDashboard.id == session.resulting_dashboard_id
             )
         )
         dash = dash_res.scalar_one_or_none()
@@ -518,4 +514,5 @@ async def get_session(
         status=session.status,
         question=last_question,
         blueprint=blueprint,
+        dashboard_id=session.resulting_dashboard_id,
     )

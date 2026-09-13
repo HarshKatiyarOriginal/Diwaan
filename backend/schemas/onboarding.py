@@ -64,3 +64,7 @@ class RespondResponse(BaseModel):
     status: Literal["in_progress", "ready_to_generate", "complete"]
     question: Optional[str] = None
     blueprint: Optional[Blueprint] = None
+    # The TenantDashboard row this interview created — the frontend needs
+    # this to scope subsequent widget-data calls to the right business;
+    # Blueprint itself carries no id (it doesn't exist until persisted).
+    dashboard_id: Optional[UUID] = None

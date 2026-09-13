@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import './LandingPage.css';
 import DiwaanSeal from './components/DiwaanSeal';
 import BlueprintRenderer from './BlueprintRenderer';
+import BusinessSwitcher from './components/BusinessSwitcher';
 import { KIRANA_SHOP_BLUEPRINT, FARM_BLUEPRINT, PAPER_FACTORY_BLUEPRINT, ICE_CREAM_FACTORY_BLUEPRINT, TILES_FACTORY_BLUEPRINT } from './fixtures';
 import { ARCHETYPES, validateTheme } from './themes/archetypes';
 import OnboardingChat from './components/OnboardingChat';
@@ -40,17 +41,40 @@ function hexToRgba(hex, alpha) {
 /**
  * LandingPage — onboarding chat + dashboard renderer.
  */
-function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpired, onLogout, onOpenSettings, onToast }) {
+function LandingPage({ authToken, tenantId, dashboardId, onActiveDashboardChange, initialBlueprint, onBack, onAuthExpired, onLogout, onOpenSettings, onToast }) {
   const [session, setSession] = useState(null);
   const [isThinking, setIsThinking] = useState(false);
   const [activeBlueprint, setActiveBlueprint] = useState(initialBlueprint || null);
+  const [currentDashboardId, setCurrentDashboardId] = useState(dashboardId || null);
   const [sampleMode, setSampleMode] = useState(false);
   const [sampleTab, setSampleTab] = useState('kirana-shop');
   const [showReonboardConfirm, setShowReonboardConfirm] = useState(false);
+  const [startError, setStartError] = useState(null);
+
+  // ─── Switch to a different business's dashboard ────────────────────────────
+  async function handleDashboardSwitch(id) {
+    if (!id || id === currentDashboardId) return;
+    try {
+      const res = await apiFetch(`/api/dashboards/${id}`);
+      if (res.status === 401) {
+        onAuthExpired?.();
+        return;
+      }
+      if (!res.ok) throw new Error('Failed to load business');
+      const blueprint = await res.json();
+      setActiveBlueprint(blueprint);
+      setCurrentDashboardId(id);
+      onActiveDashboardChange?.(id);
+    } catch (e) {
+      console.error('Failed to switch business:', e);
+      onToast?.('Could not open that business right now.', 'error');
+    }
+  }
 
   // ─── Start new session helper ──────────────────────────────────────────────
   async function startNewSession() {
     setIsThinking(true);
+    setStartError(null);
     try {
       let data;
       if (IS_MOCK) {
@@ -61,7 +85,12 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
           onAuthExpired?.();
           return;
         }
-        if (!res.ok) throw new Error('Failed to start session');
+        if (!res.ok) {
+          const msg = res.status === 429 || res.status === 502
+            ? 'The AI is temporarily unavailable (rate limit or daily quota reached). Try again in a minute.'
+            : `Could not start the interview (server returned ${res.status}).`;
+          throw new Error(msg);
+        }
         data = await res.json();
       }
       setSession({
@@ -71,6 +100,10 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
       });
     } catch (e) {
       console.error('Failed to start session:', e);
+      setStartError(e.message || 'Could not start the interview.');
+      onToast?.(e.message || 'Could not start the interview.', 'error');
+      // Don't strand the user on a dead spinner — fall back to whatever business was open.
+      if (initialBlueprint) setActiveBlueprint(initialBlueprint);
     } finally {
       setIsThinking(false);
     }
@@ -137,6 +170,9 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
         });
       } catch (e) {
         console.error('Failed to start session:', e);
+        setStartError(
+          'The AI is temporarily unavailable (rate limit or daily quota reached). Try again in a minute.'
+        );
       } finally {
         setIsThinking(false);
       }
@@ -204,6 +240,10 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
         onToast?.('Blueprint compilation complete!', 'success');
         setTimeout(() => {
           setActiveBlueprint(data.blueprint);
+          if (data.dashboard_id) {
+            setCurrentDashboardId(data.dashboard_id);
+            onActiveDashboardChange?.(data.dashboard_id);
+          }
           setIsThinking(false);
         }, 1500);
         return;
@@ -270,10 +310,10 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
             boxShadow: 'var(--shadow-elevation-high)',
           }}>
             <h3 style={{ fontFamily: 'var(--font-mono)', color: 'var(--brushed-gold)', fontSize: '1.1rem', marginBottom: '12px' }}>
-              RE-ONBOARD / REFINE DASHBOARD
+              ADD A NEW BUSINESS
             </h3>
             <p style={{ color: 'var(--muted-slate)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '24px' }}>
-              Starting a new AI onboarding interview will generate a fresh business blueprint and update your active dashboard parameters. Are you sure you want to proceed?
+              We&apos;ll ask a few questions and build a dashboard for this business. Your other businesses stay exactly as they are.
             </p>
             <div style={{ display: 'flex', gap: '12px' }}>
               <button
@@ -353,6 +393,13 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
       <nav className="nav">
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span className="nav-logo glow-text">DIWAAN</span>
+          <BusinessSwitcher
+            activeDashboardId={currentDashboardId}
+            onDashboardSwitch={handleDashboardSwitch}
+            onAddBusiness={() => setShowReonboardConfirm(true)}
+            onAuthExpired={onAuthExpired}
+            onToast={onToast}
+          />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {onBack && (
@@ -425,6 +472,30 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
               onSendMessage={handleSendMessage}
               isMock={IS_MOCK}
             />
+          ) : startError ? (
+            <div style={{
+              maxWidth: 520, margin: '0 auto', padding: '32px',
+              background: 'rgba(255,90,90,0.08)', border: '1px solid rgba(255,120,120,0.4)',
+              borderRadius: '16px', textAlign: 'center',
+            }}>
+              <p style={{ color: '#ff9a9a', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '10px' }}>
+                Interview didn&apos;t start
+              </p>
+              <p style={{ color: 'var(--muted-slate)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '24px' }}>
+                {startError}
+              </p>
+              <button
+                onClick={startNewSession}
+                style={{
+                  background: 'var(--brushed-gold)', color: 'var(--vault-sapphire)', border: 'none',
+                  padding: '12px 28px', borderRadius: '100px', fontFamily: 'var(--font-mono)',
+                  fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em',
+                  cursor: 'pointer',
+                }}
+              >
+                ↻ Try again
+              </button>
+            </div>
           ) : (
             <div style={{ height: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <DiwaanSeal state="generating" size="large" />
@@ -540,7 +611,7 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
                   textTransform: 'uppercase', letterSpacing: '0.05em', transition: 'var(--transition-fast)',
                 }}
               >
-                ↻ Refine / Re-onboard
+                ＋ Add a Business
               </button>
             </div>
             {(() => {
@@ -548,7 +619,7 @@ function LandingPage({ authToken, tenantId, initialBlueprint, onBack, onAuthExpi
               if (!theme || !validateTheme(theme)) return null;
               return (
                 <div className={`theme-root motif-${theme.backgroundMotif} accent-${theme.accentEffect}`} style={themeRootStyle(theme)}>
-                  <BlueprintRenderer blueprint={activeBlueprint} theme={theme} tenantId={tenantId} />
+                  <BlueprintRenderer blueprint={activeBlueprint} theme={theme} dashboardId={currentDashboardId} />
                 </div>
               );
             })()}

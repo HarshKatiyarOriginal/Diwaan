@@ -42,7 +42,7 @@ export default function MetricCard({
     // New data-layer props
     binding,
     storedEntry,
-    tenantId,
+    dashboardId,
     onDataUpdate,
 }) {
     const unit = binding?.unit ?? legacyUnit ?? '';
@@ -102,13 +102,13 @@ export default function MetricCard({
     const sparkPoints = last_two.length >= 2 ? [...last_two].reverse() : legacySparkline;
 
     async function handleSave() {
-        if (!tenantId || !binding?.key) return;
+        if (!dashboardId || !binding?.key) return;
         const val = parseFloat(editInput.replace(/[^0-9.-]/g, ''));
         if (isNaN(val)) return;
         setSaving(true);
         setSaveError(null);
         try {
-            const res = await apiFetch(`/api/dashboards/${tenantId}/data/${binding.key}`, {
+            const res = await apiFetch(`/api/dashboards/${dashboardId}/data/${binding.key}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value: val }),
@@ -132,7 +132,7 @@ export default function MetricCard({
         <div className={`glass-card component-wrapper ${effectClassName}`}>
             <div className="panel-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span className="panel-title">{title}</span>
-                {binding && tenantId && !editing && (
+                {binding && dashboardId && !editing && (
                     <button
                         className="neumorph-primary"
                         style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '6px' }}
@@ -147,7 +147,7 @@ export default function MetricCard({
             {isEmpty && !editing ? (
                 <div style={{ marginTop: '24px', color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5 }}>
                     No data yet.{' '}
-                    {binding && tenantId && (
+                    {binding && dashboardId && (
                         <button
                             style={{ background: 'none', border: 'none', color: 'var(--brushed-gold)', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}
                             onClick={() => { setEditing(true); setSaveError(null); }}

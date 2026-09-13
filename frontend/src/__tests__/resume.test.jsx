@@ -46,7 +46,7 @@ test('a 401 during LandingPage resume-check GET leaves pending_session_id intact
     render(
       <LandingPage
         authToken="expired_token"
-        tenantId="tenant-123"
+        dashboardId="tenant-123"
         initialBlueprint={null}
         onBack={() => {}}
         onAuthExpired={onAuthExpired}

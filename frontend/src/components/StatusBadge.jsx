@@ -31,7 +31,7 @@ export default function StatusBadge({
     // Data-layer props
     binding,
     storedEntry,
-    tenantId,
+    dashboardId,
     onDataUpdate,
 }) {
     const options = binding?.options || [];
@@ -44,11 +44,11 @@ export default function StatusBadge({
     const [showPicker, setShowPicker] = useState(false);
 
     async function handleSelect(opt) {
-        if (!tenantId || !binding?.key) return;
+        if (!dashboardId || !binding?.key) return;
         setSaving(true);
         setSaveError(null);
         try {
-            const res = await apiFetch(`/api/dashboards/${tenantId}/data/${binding.key}`, {
+            const res = await apiFetch(`/api/dashboards/${dashboardId}/data/${binding.key}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value: opt }),
@@ -70,7 +70,7 @@ export default function StatusBadge({
         <div className="glass-card component-wrapper" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div className="panel-header" style={{ marginBottom: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="panel-title">{title}</span>
-                {binding && tenantId && options.length > 0 && (
+                {binding && dashboardId && options.length > 0 && (
                     <button
                         className="neumorph-primary"
                         style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '6px' }}
@@ -134,7 +134,7 @@ export default function StatusBadge({
 
             {!storedEntry && !legacyStatus && !showPicker && (
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '8px' }}>
-                    {binding && tenantId ? (
+                    {binding && dashboardId ? (
                         <button
                             style={{ background: 'none', border: 'none', color: 'var(--brushed-gold)', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}
                             onClick={() => setShowPicker(true)}

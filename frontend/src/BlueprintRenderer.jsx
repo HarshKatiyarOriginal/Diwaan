@@ -29,15 +29,15 @@ function SkeletonCard({ style }) {
     );
 }
 
-export default function BlueprintRenderer({ blueprint, theme, tenantId }) {
+export default function BlueprintRenderer({ blueprint, theme, dashboardId }) {
     const [widgetData, setWidgetData] = useState({});
     const [dataLoading, setDataLoading] = useState(false);
 
     const fetchData = useCallback(async () => {
-        if (!tenantId) return;
+        if (!dashboardId) return;
         setDataLoading(true);
         try {
-            const res = await apiFetch(`/api/dashboards/${tenantId}/data`);
+            const res = await apiFetch(`/api/dashboards/${dashboardId}/data`);
             if (res.ok) {
                 const json = await res.json();
                 setWidgetData(json.data || {});
@@ -47,7 +47,7 @@ export default function BlueprintRenderer({ blueprint, theme, tenantId }) {
         } finally {
             setDataLoading(false);
         }
-    }, [tenantId]);
+    }, [dashboardId]);
 
     useEffect(() => {
         fetchData();
@@ -109,7 +109,7 @@ export default function BlueprintRenderer({ blueprint, theme, tenantId }) {
                                 effectClassName={effectClass}
                                 binding={binding}
                                 storedEntry={storedEntry}
-                                tenantId={tenantId}
+                                dashboardId={dashboardId}
                                 onDataUpdate={handleDataUpdate}
                             />
                         ) : (

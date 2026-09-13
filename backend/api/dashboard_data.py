@@ -1,13 +1,14 @@
 """
 Dashboard Data API — Part II real data layer.
 
-All endpoints are tenant-scoped via current_user.tenant_id.
-Absolute isolation: every query filters by tenant_id.
+All endpoints are scoped by dashboard_id.
+Absolute isolation: every query filters by dashboard_id, and _load_owned_dashboard 
+verifies that the dashboard belongs to current_user.tenant_id.
 
-GET  /api/dashboards/{tenant_id}/data           — fetch all current widget values
-PUT  /api/dashboards/{tenant_id}/data/{key}     — upsert a widget value
-POST /api/dashboards/{tenant_id}/actions/{key}  — fire a LedgerToggle event
-GET  /api/dashboards/{tenant_id}/series/{key}   — time-series points for sparklines
+GET  /api/dashboards/{dashboard_id}/data           — fetch all current widget values
+PUT  /api/dashboards/{dashboard_id}/data/{key}     — upsert a widget value
+POST /api/dashboards/{dashboard_id}/actions/{key}  — fire a LedgerToggle event
+GET  /api/dashboards/{dashboard_id}/series/{key}   — time-series points for sparklines
 """
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,7 +56,7 @@ class WidgetValueResponse(BaseModel):
 
 
 class DashboardDataResponse(BaseModel):
-    tenant_id: UUID
+    dashboard_id: UUID
     data: dict[str, WidgetValueResponse]
 
 
@@ -75,10 +76,18 @@ class LedgerEventResponse(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _assert_tenant(tenant_id: UUID, current_user: User) -> None:
-    """Reject cross-tenant access with 403."""
-    if tenant_id != current_user.tenant_id:
+async def _load_owned_dashboard(dashboard_id: UUID, current_user: User, db: AsyncSession) -> TenantDashboard:
+    """Load dashboard and reject cross-tenant access with 403 or 404."""
+    result = await db.execute(select(TenantDashboard).where(TenantDashboard.id == dashboard_id))
+    dash = result.scalar_one_or_none()
+    
+    if not dash:
+        raise APIError("Dashboard not found", status_code=404)
+        
+    if dash.tenant_id != current_user.tenant_id:
         raise APIError("Access denied: tenant mismatch.", status_code=403)
+        
+    return dash
 
 
 def _parse_range(range_str: str) -> datetime:
@@ -90,16 +99,16 @@ def _parse_range(range_str: str) -> datetime:
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
-@router.get("/{tenant_id}/data", response_model=DashboardDataResponse)
+@router.get("/{dashboard_id}/data", response_model=DashboardDataResponse)
 async def get_dashboard_data(
-    tenant_id: UUID,
+    dashboard_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _assert_tenant(tenant_id, current_user)
+    await _load_owned_dashboard(dashboard_id, current_user, db)
 
     result = await db.execute(
-        select(WidgetValue).where(WidgetValue.tenant_id == tenant_id)
+        select(WidgetValue).where(WidgetValue.dashboard_id == dashboard_id)
     )
     rows = result.scalars().all()
 
@@ -109,7 +118,7 @@ async def get_dashboard_data(
         last_two_pts = await db.execute(
             select(WidgetSeriesPoint)
             .where(
-                WidgetSeriesPoint.tenant_id == tenant_id,
+                WidgetSeriesPoint.dashboard_id == dashboard_id,
                 WidgetSeriesPoint.key == row.key,
             )
             .order_by(WidgetSeriesPoint.ts.desc())
@@ -126,26 +135,18 @@ async def get_dashboard_data(
             last_two=last_two,
         )
 
-    return DashboardDataResponse(tenant_id=tenant_id, data=data)
+    return DashboardDataResponse(dashboard_id=dashboard_id, data=data)
 
 
-@router.put("/{tenant_id}/data/{key}")
+@router.put("/{dashboard_id}/data/{key}")
 async def put_widget_value(
-    tenant_id: UUID,
+    dashboard_id: UUID,
     key: str,
     body: WidgetValuePut,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _assert_tenant(tenant_id, current_user)
-
-    # Validate key exists in the dashboard's binding catalog
-    dash_res = await db.execute(
-        select(TenantDashboard).where(TenantDashboard.tenant_id == tenant_id)
-    )
-    dash = dash_res.scalar_one_or_none()
-    if not dash:
-        raise APIError("Dashboard not found", status_code=404)
+    dash = await _load_owned_dashboard(dashboard_id, current_user, db)
 
     catalog = (dash.customized_parameters or {}).get("binding_catalog", [])
     valid_keys = {entry["key"] for entry in catalog if isinstance(entry, dict) and "key" in entry}
@@ -174,7 +175,7 @@ async def put_widget_value(
     # Upsert WidgetValue
     existing_res = await db.execute(
         select(WidgetValue).where(
-            WidgetValue.tenant_id == tenant_id,
+            WidgetValue.dashboard_id == dashboard_id,
             WidgetValue.key == key,
         )
     )
@@ -189,7 +190,8 @@ async def put_widget_value(
         existing.updated_by = user_email
     else:
         db.add(WidgetValue(
-            tenant_id=tenant_id,
+            dashboard_id=dashboard_id,
+            tenant_id=current_user.tenant_id,
             key=key,
             value_json={"value": body.value},
             updated_at=now,
@@ -200,7 +202,8 @@ async def put_widget_value(
     try:
         numeric_val = float(body.value)
         db.add(WidgetSeriesPoint(
-            tenant_id=tenant_id,
+            dashboard_id=dashboard_id,
+            tenant_id=current_user.tenant_id,
             key=key,
             ts=now,
             value=numeric_val,
@@ -212,19 +215,20 @@ async def put_widget_value(
     return {"ok": True, "key": key, "updated_at": now.isoformat()}
 
 
-@router.post("/{tenant_id}/actions/{key}")
+@router.post("/{dashboard_id}/actions/{key}")
 async def fire_ledger_action(
-    tenant_id: UUID,
+    dashboard_id: UUID,
     key: str,
     body: LedgerActionRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _assert_tenant(tenant_id, current_user)
+    await _load_owned_dashboard(dashboard_id, current_user, db)
 
     user_email = getattr(current_user, "email", None)
     event = LedgerEvent(
-        tenant_id=tenant_id,
+        dashboard_id=dashboard_id,
+        tenant_id=current_user.tenant_id,
         key=key,
         label=body.label,
         fired_at=datetime.now(timezone.utc),
@@ -245,21 +249,21 @@ async def fire_ledger_action(
     )
 
 
-@router.get("/{tenant_id}/series/{key}", response_model=SeriesResponse)
+@router.get("/{dashboard_id}/series/{key}", response_model=SeriesResponse)
 async def get_widget_series(
-    tenant_id: UUID,
+    dashboard_id: UUID,
     key: str,
     range: str = Query(default="30d", pattern="^(30d|90d|1y)$"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _assert_tenant(tenant_id, current_user)
+    await _load_owned_dashboard(dashboard_id, current_user, db)
 
     cutoff = _parse_range(range)
     result = await db.execute(
         select(WidgetSeriesPoint)
         .where(
-            WidgetSeriesPoint.tenant_id == tenant_id,
+            WidgetSeriesPoint.dashboard_id == dashboard_id,
             WidgetSeriesPoint.key == key,
             WidgetSeriesPoint.ts >= cutoff,
         )
@@ -273,19 +277,19 @@ async def get_widget_series(
     )
 
 
-@router.get("/{tenant_id}/actions/{key}", response_model=list[LedgerEventResponse])
+@router.get("/{dashboard_id}/actions/{key}", response_model=list[LedgerEventResponse])
 async def get_ledger_events(
-    tenant_id: UUID,
+    dashboard_id: UUID,
     key: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Returns the event log for a LedgerToggle, most recent first."""
-    _assert_tenant(tenant_id, current_user)
+    await _load_owned_dashboard(dashboard_id, current_user, db)
 
     result = await db.execute(
         select(LedgerEvent)
-        .where(LedgerEvent.tenant_id == tenant_id, LedgerEvent.key == key)
+        .where(LedgerEvent.dashboard_id == dashboard_id, LedgerEvent.key == key)
         .order_by(LedgerEvent.fired_at.desc())
         .limit(50)
     )

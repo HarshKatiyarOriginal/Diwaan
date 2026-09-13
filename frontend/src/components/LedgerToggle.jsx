@@ -9,7 +9,7 @@ export default function LedgerToggle({
     // Data-layer props
     binding,
     storedEntry,
-    tenantId,
+    dashboardId,
     onDataUpdate,
 }) {
     const [lastEvent, setLastEvent] = useState(null);
@@ -17,13 +17,13 @@ export default function LedgerToggle({
     const [firing, setFiring] = useState(false);
     const [error, setError] = useState(null);
 
-    const canFire = !!(binding?.key && tenantId);
+    const canFire = !!(binding?.key && dashboardId);
     const displayLabel = label || binding?.label || 'Commit';
 
     // Load last ledger event on mount
     useEffect(() => {
         if (!canFire) return;
-        apiFetch(`/api/dashboards/${tenantId}/actions/${binding.key}`)
+        apiFetch(`/api/dashboards/${dashboardId}/actions/${binding.key}`)
             .then(r => r.ok ? r.json() : [])
             .then(events => {
                 if (Array.isArray(events) && events.length > 0) {
@@ -31,7 +31,7 @@ export default function LedgerToggle({
                 }
             })
             .catch(() => {});
-    }, [canFire, tenantId, binding?.key]);
+    }, [canFire, dashboardId, binding?.key]);
 
     async function handleFire() {
         if (!canFire) {
@@ -48,7 +48,7 @@ export default function LedgerToggle({
         setFiring(true);
         setError(null);
         try {
-            const res = await apiFetch(`/api/dashboards/${tenantId}/actions/${binding.key}`, {
+            const res = await apiFetch(`/api/dashboards/${dashboardId}/actions/${binding.key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ label: displayLabel }),

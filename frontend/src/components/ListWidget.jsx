@@ -28,7 +28,7 @@ export default function ListWidget({
     // Data-layer props
     binding,
     storedEntry,
-    tenantId,
+    dashboardId,
     onDataUpdate,
 }) {
     const storedItems = storedEntry?.value_json?.value ?? null;
@@ -40,14 +40,14 @@ export default function ListWidget({
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState(null);
 
-    const canEdit = !!(binding?.key && tenantId);
+    const canEdit = !!(binding?.key && dashboardId);
 
     async function persistItems(updated) {
         if (!canEdit) return;
         setSaving(true);
         setSaveError(null);
         try {
-            const res = await apiFetch(`/api/dashboards/${tenantId}/data/${binding.key}`, {
+            const res = await apiFetch(`/api/dashboards/${dashboardId}/data/${binding.key}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value: updated }),

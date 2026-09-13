@@ -7,12 +7,16 @@ from alembic import context
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# env.py lives at <repo_root>/backend/alembic/env.py — go up three levels
+# to reach <repo_root> so `backend.*` imports resolve regardless of the
+# CWD alembic was invoked from (CLI from backend/, or the app's startup
+# hook running from the repo root).
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from backend.core.config import settings
 from backend.db.session import Base
-# Import all models here so Alembic can discover them
-from backend.models import user, diwaan, specshield
+# Import all models here so Alembic can discover them (autogenerate support)
+from backend.models import user, diwaan, specshield, onboarding, widget_data
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

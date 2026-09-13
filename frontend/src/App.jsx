@@ -45,6 +45,7 @@ function App() {
   const [transitioning, setTransitioning] = useState(false);
   const [authToken, setAuthToken] = useState(null);
   const [tenantId, setTenantId] = useState(null);
+  const [activeDashboardId, setActiveDashboardId] = useState(null);
   const [existingBlueprint, setExistingBlueprint] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState(null);
@@ -63,7 +64,15 @@ function App() {
     clientClearSession();
     setAuthToken(null);
     setTenantId(null);
+    setActiveDashboardId(null);
     setExistingBlueprint(null);
+  }
+
+  // Keeps the boot-time "which business was open" memory in sync whenever
+  // LandingPage switches businesses or finishes creating a new one.
+  function handleActiveDashboardChange(id) {
+    setActiveDashboardId(id);
+    sessionStorage.setItem('diwaan_active_dashboard_id', id);
   }
 
   useEffect(() => {
@@ -76,18 +85,43 @@ function App() {
     setTenantId(tid);
 
     try {
-      const res = await apiFetch(`/api/dashboards/${tid}`);
+      const listRes = await apiFetch('/api/dashboards');
 
-      if (res.status === 401) {
+      if (listRes.status === 401) {
         clearSession();
         setView('auth');
         return;
       }
 
-      if (res.ok) {
-        const blueprint = await res.json();
-        setExistingBlueprint(blueprint);
-        setView('diwaan');
+      if (listRes.ok) {
+        const dashboards = await listRes.json();
+        
+        if (dashboards.length > 0) {
+          // If we have an active_dashboard_id stored, use it if it exists in the list
+          const activeId = sessionStorage.getItem('diwaan_active_dashboard_id');
+          let selectedId = dashboards[0].id; // newest first by default
+          
+          if (activeId && dashboards.some(d => d.id === activeId)) {
+            selectedId = activeId;
+          } else {
+            sessionStorage.setItem('diwaan_active_dashboard_id', selectedId);
+          }
+          
+          setActiveDashboardId(selectedId);
+          
+          const dashRes = await apiFetch(`/api/dashboards/${selectedId}`);
+          if (dashRes.ok) {
+            const blueprint = await dashRes.json();
+            setExistingBlueprint(blueprint);
+            setView('diwaan');
+          } else {
+            // Unlikely to fail immediately after list, but fallback to SpecShield if it does
+            setView('specshield');
+          }
+        } else {
+          // New account or 0 businesses -> start interview directly
+          setView('diwaan');
+        }
       } else {
         setView('specshield');
       }
@@ -162,7 +196,7 @@ function App() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', position: 'relative' }}>
 
       {/* Vault Transition Overlay */}
       {transitioning && (
@@ -195,6 +229,8 @@ function App() {
           <LandingPage
             authToken={authToken}
             tenantId={tenantId}
+            dashboardId={activeDashboardId}
+            onActiveDashboardChange={handleActiveDashboardChange}
             initialBlueprint={existingBlueprint}
             onBack={handleBackToSpecShield}
             onAuthExpired={handleAuthExpired}

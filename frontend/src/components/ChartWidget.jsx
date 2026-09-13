@@ -93,25 +93,25 @@ export default function ChartWidget({
     // Data-layer props
     binding,
     storedEntry,
-    tenantId,
+    dashboardId,
     onDataUpdate,
 }) {
     const [range, setRange] = useState('30d');
     const [points, setPoints] = useState(null);  // null = loading
     const [loadError, setLoadError] = useState(null);
 
-    const canFetch = !!(binding?.key && tenantId);
+    const canFetch = !!(binding?.key && dashboardId);
     const unit = binding?.unit ?? '';
 
     useEffect(() => {
         if (!canFetch) return;
         setPoints(null);
         setLoadError(null);
-        apiFetch(`/api/dashboards/${tenantId}/series/${binding.key}?range=${range}`)
+        apiFetch(`/api/dashboards/${dashboardId}/series/${binding.key}?range=${range}`)
             .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
             .then(data => setPoints(data.points || []))
             .catch(e => setLoadError(String(e)));
-    }, [canFetch, tenantId, binding?.key, range]);
+    }, [canFetch, dashboardId, binding?.key, range]);
 
     // If no data binding, render legacy-mode with fixed data
     if (!canFetch && legacyData) {
